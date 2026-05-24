@@ -1,0 +1,173 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-content_engine}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: ${POSTGRES_DB:-content_engine}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-content_engine}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    # Do not set QDRANT__SERVICE__API_KEY to an empty string — that enables auth
+    # without a key and causes 401s from the backend. Set QDRANT_API_KEY in .env
+    # only when you need Qdrant authentication (production).
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  tavily-mcp:
+    image: supercorp/supergateway:latest
+    restart: unless-stopped
+    environment:
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+    ports:
+      - "8001:8001"
+    command:
+      - "--stdio"
+      - "npx -y tavily-mcp"
+      - "--outputTransport"
+      - "streamableHttp"
+      - "--streamableHttpPath"
+      - "/"
+      - "--port"
+      - "8001"
+
+  knowledge-mcp:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql://${POSTGRES_USER:-content_engine}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-content_engine}
+      QDRANT_URL: http://qdrant:6333
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8002
+    ports:
+      - "8002:8002"
+    depends_on:
+      db:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    command: python -m mcp_servers.knowledge.server
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PYTHONPATH: /app
+      # Browser-facing URLs — required for LinkedIn OAuth (do not use http://backend:8000).
+      APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:3000}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:8000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-content_engine}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-content_engine}
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      MCP_TAVILY_URL: http://tavily-mcp:8001
+      MCP_KNOWLEDGE_URL: http://knowledge-mcp:8002
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql://${POSTGRES_USER:-content_engine}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-content_engine}
+      REDIS_URL: redis://redis:6379/0
+      QDRANT_URL: http://qdrant:6333
+      MCP_TAVILY_URL: http://tavily-mcp:8001
+      MCP_KNOWLEDGE_URL: http://knowledge-mcp:8002
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+    command: celery -A services.scheduler.tasks worker --loglevel=info --concurrency=4
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql://${POSTGRES_USER:-content_engine}:${POSTGRES_PASSWORD:-devpassword}@db:5432/${POSTGRES_DB:-content_engine}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A services.scheduler.tasks beat --loglevel=info --scheduler redbeat.RedBeatScheduler
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://backend:8000
+
+volumes:
+  postgres_data:
+  qdrant_data:

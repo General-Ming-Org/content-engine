@@ -1,0 +1,51 @@
+# Production overrides for the VM. Used in addition to docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Changes from dev:
+#   - Pulls images from Artifact Registry instead of building locally.
+#   - No source-mount volumes — code is baked into the image.
+#   - Frontend served as static files via nginx; no Vite dev server.
+#   - Restart policy hardened.
+
+services:
+  backend:
+    image: ${ARTIFACT_REGISTRY_URL}/backend:latest
+    build: null
+    volumes:
+      - playwright_data:/root/.cache/ms-playwright
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+    restart: always
+
+  worker:
+    image: ${ARTIFACT_REGISTRY_URL}/backend:latest
+    build: null
+    volumes:
+      - playwright_data:/root/.cache/ms-playwright
+    restart: always
+
+  beat:
+    image: ${ARTIFACT_REGISTRY_URL}/backend:latest
+    build: null
+    restart: always
+
+  knowledge-mcp:
+    image: ${ARTIFACT_REGISTRY_URL}/backend:latest
+    build: null
+    restart: always
+
+  frontend:
+    image: ${ARTIFACT_REGISTRY_URL}/frontend:latest
+    build: null
+    volumes: []
+    environment:
+      VITE_API_URL: ""  # built-in at image time; nginx reverse-proxies /api
+    restart: always
+
+  db:
+    restart: always
+
+  redis:
+    restart: always
+
+  qdrant:
+    restart: always

@@ -1,0 +1,48 @@
+# Copy to terraform.tfvars and fill in. Never commit terraform.tfvars.
+
+project_id  = "your-gcp-project-id"
+region      = "us-central1"
+zone        = "us-central1-a"
+github_repo = "your-github-user/content-engine"
+git_branch  = "main"
+
+# Lock these to your IP for any real deployment.
+# Find your IP: curl ifconfig.me
+allowed_ssh_cidrs       = ["YOUR.IP.HERE/32"]
+dashboard_allowed_cidrs = ["YOUR.IP.HERE/32"]
+
+# Optional. Leave empty to use the bare IP.
+domain_name = ""
+
+# ── Initial secret values ─────────────────────────────────────────────────────
+# Either fill these in here (and apply via terraform) OR set them to empty strings
+# and write versions later via `gcloud secrets versions add`. CI/CD typically does
+# the latter so secrets never touch your terraform state.
+
+anthropic_api_key      = ""
+voyage_api_key         = ""
+openai_api_key         = ""
+tavily_api_key         = ""
+linkedin_client_id     = ""
+linkedin_client_secret = ""
+linkedin_access_token  = ""
+linkedin_refresh_token = ""
+linkedin_person_urn    = ""
+substack_email         = ""
+substack_password      = ""
+smtp_username          = ""
+smtp_password          = ""
+smtp_from_address      = ""
+smtp_to_address        = ""
+
+# Generate strong values:
+#   openssl rand -hex 32   →  app_secret_key
+#   openssl rand -hex 16   →  dashboard_password (or pick your own)
+#   openssl rand -hex 32   →  qdrant_api_key
+#   openssl rand -hex 32   →  mcp_knowledge_token
+#   openssl rand -hex 24   →  postgres_password
+app_secret_key      = ""
+dashboard_password  = ""
+qdrant_api_key      = ""
+mcp_knowledge_token = ""
+postgres_password   = ""

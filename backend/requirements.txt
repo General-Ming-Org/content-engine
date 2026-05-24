@@ -1,0 +1,76 @@
+# Web framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+
+# Database
+sqlalchemy==2.0.36
+alembic==1.14.0
+psycopg2-binary==2.9.10
+asyncpg==0.30.0
+
+# Async support
+anyio==4.7.0
+
+# Task queue
+celery==5.4.0
+redis==5.2.1
+celery-redbeat==2.2.0
+
+# Settings / validation
+pydantic==2.10.3
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# AI / LLM — LiteLLM routes to any provider (Anthropic, OpenAI, Google, Mistral,
+# Groq, DeepSeek, xAI, OpenRouter, etc.) through a single normalized interface.
+# We still pin the Anthropic SDK because LiteLLM uses it under the hood for
+# Claude calls.
+litellm==1.55.0
+anthropic==0.40.0
+
+# Vector DB + embeddings
+qdrant-client==1.12.1
+
+# MCP — Model Context Protocol SDK (client + server, FastMCP for the knowledge server)
+# 1.1.2 predates `mcp.server.fastmcp` and the streamable-http transport; 1.10.x is
+# the first release line where the knowledge server's API (FastMCP + streamable_http_app
+# + host/port via constructor) is all present and stable.
+mcp==1.10.1
+
+# Search APIs
+# Pinned <0.28 because litellm 1.55.0 requires httpx<0.28.0.
+httpx==0.27.2
+tavily-python==0.5.0
+
+# Browser automation (Substack)
+# 1.55.0 is the first release with Debian 13 (Trixie) support for
+# `playwright install --with-deps`. Don't downgrade below this without
+# also pinning the base image to Debian 12 (Bookworm).
+playwright==1.55.0
+
+# Email
+aiosmtplib==3.0.2
+
+# Utilities + Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+# passlib 1.7.4's `detect_wrap_bug` self-check uses a >72-byte test password,
+# which bcrypt >= 4.1 rejects with a hard ValueError. Pin to the last 4.0.x
+# release until passlib publishes a fix.
+bcrypt==4.0.1
+cryptography==44.0.0           # Fernet for user_credentials encryption
+itsdangerous==2.2.0            # signed OAuth state payload in LinkedIn OAuth (Authlib handles protocol)
+authlib==1.4.1                 # OAuth 2.0 client (LinkedIn authorize + token exchange)
+email-validator==2.2.0         # pydantic EmailStr
+tenacity==9.0.0
+structlog==24.4.0
+numpy==2.2.0
+scikit-learn==1.6.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+factory-boy==3.3.1
+aiosqlite==0.20.0              # in-memory SQLite engine for the test conftest
