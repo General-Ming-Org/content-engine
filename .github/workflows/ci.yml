@@ -23,6 +23,18 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: content_engine
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: content_engine
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U content_engine"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -48,12 +60,21 @@ jobs:
       - name: Run tests
         working-directory: backend
         env:
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
-          REDIS_URL: redis://localhost:6379/0
-          ANTHROPIC_API_KEY: test
-          TAVILY_API_KEY: test
-          VOYAGE_API_KEY: test
-          QDRANT_URL: http://localhost:6333
+          # Quoted because of the trailing colon — YAML otherwise reads it as a mapping separator.
+          DATABASE_URL: "postgresql://content_engine:testpassword@localhost:5432/content_engine"
+          REDIS_URL: "redis://localhost:6379/0"
+          QDRANT_URL: "http://localhost:6333"
+          # Phase 1 no-defaults policy: required env vars. Tests mock the real APIs;
+          # these only need to be non-empty to satisfy LLMConfigurationError / EmbeddingConfigurationError.
+          LLM_PROVIDER: openai
+          LLM_MODEL: gpt-4o-mini
+          EMBEDDING_PROVIDER: openai
+          EMBEDDING_MODEL: text-embedding-3-small
+          OPENAI_API_KEY: test-openai-key
+          ANTHROPIC_API_KEY: test-anthropic-key
+          TAVILY_API_KEY: test-tavily-key
+          VOYAGE_API_KEY: test-voyage-key
+          APP_SECRET_KEY: test-secret-key-not-for-prod
         run: pytest tests/ -v --tb=short
 
   frontend-build:
