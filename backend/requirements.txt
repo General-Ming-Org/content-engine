@@ -20,7 +20,7 @@ celery-redbeat==2.2.0
 # Settings / validation
 pydantic==2.10.3
 pydantic-settings==2.6.1
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # AI / LLM — LiteLLM routes to any provider (Anthropic, OpenAI, Google, Mistral,
 # Groq, DeepSeek, xAI, OpenRouter, etc.) through a single normalized interface.
