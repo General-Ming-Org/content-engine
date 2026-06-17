@@ -59,7 +59,7 @@ passlib[bcrypt]==1.7.4
 # which bcrypt >= 4.1 rejects with a hard ValueError. Pin to the last 4.0.x
 # release until passlib publishes a fix.
 bcrypt==4.0.1
-cryptography==44.0.0           # Fernet for user_credentials encryption
+cryptography==48.0.1           # Fernet for user_credentials encryption
 itsdangerous==2.2.0            # signed OAuth state payload in LinkedIn OAuth (Authlib handles protocol)
 authlib==1.6.12                 # OAuth 2.0 client (LinkedIn authorize + token exchange)
 email-validator==2.2.0         # pydantic EmailStr
