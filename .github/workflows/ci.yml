@@ -99,7 +99,7 @@ jobs:
 
       - name: Build
         working-directory: frontend
-        run: npm run build
+        run: npm run build:prod
 
   terraform-validate:
     runs-on: ubuntu-latest
@@ -121,9 +121,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare env file for compose validation
+        run: cp .env.example .env
       - name: Validate production compose merge
         env:
           ARTIFACT_REGISTRY_URL: us-central1-docker.pkg.dev/example-project/content-engine
+          TAVILY_API_KEY: ci-placeholder
         run: |
           docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
           docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml config -q

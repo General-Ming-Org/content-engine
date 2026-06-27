@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { format } from "date-fns";
-import { Plus, Trash2, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import {
   getMetrics, getBenchmarks, getGoals, getReports, createGoal, deleteGoal, triggerMetricCollection,
   type Goal,
@@ -274,10 +274,10 @@ function ReportsTab() {
             </div>
             <span className="text-xs text-gray-600">{format(new Date(r.created_at), "MMM d, HH:mm")}</span>
           </div>
-          {r.report_json.headline && (
-            <p className="text-sm text-gray-300 mb-3">{r.report_json.headline as string}</p>
+          {typeof r.report_json.headline === "string" && (
+            <p className="text-sm text-gray-300 mb-3">{r.report_json.headline}</p>
           )}
-          {r.report_json.observations && (
+          {Array.isArray(r.report_json.observations) && (
             <ul className="space-y-1">
               {(r.report_json.observations as string[]).map((obs, i) => (
                 <li key={i} className="text-xs text-gray-500 flex gap-2">

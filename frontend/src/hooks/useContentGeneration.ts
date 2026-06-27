@@ -12,7 +12,7 @@ function isTerminal(status: TaskProgress["status"] | undefined) {
   return status === "complete" || status === "failed" || status === "blocked";
 }
 
-function fallbackProgress(taskId: string | null, topicId: string | null): TaskProgress {
+function fallbackProgress(taskId: string | null, _topicId: string | null): TaskProgress {
   return {
     task_id: taskId ?? "pending",
     status: "running",

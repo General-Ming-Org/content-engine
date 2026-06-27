@@ -101,38 +101,6 @@ export function LinkedInSetup() {
     mutationFn: () => startLinkedinOAuth(),
     cooldownSeconds: 3,
     onSuccess: (data) => {
-      // #region agent log
-      fetch("http://127.0.0.1:7412/ingest/01946234-6f98-46c0-9603-2f2357e67220", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "40c88e" },
-        body: JSON.stringify({
-          sessionId: "40c88e",
-          runId: "pre-fix",
-          hypothesisId: "H4",
-          location: "LinkedInSetup.tsx:connectMut",
-          message: "oauth-url response before redirect",
-          data: {
-            redirect_uri: data.redirect_uri,
-            scopes: data.scopes,
-            url_host: (() => {
-              try {
-                return new URL(data.url).host;
-              } catch {
-                return "";
-              }
-            })(),
-            url_redirect_param: (() => {
-              try {
-                return new URL(data.url).searchParams.get("redirect_uri");
-              } catch {
-                return null;
-              }
-            })(),
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       window.location.href = data.url;
     },
     onError: (err) => {

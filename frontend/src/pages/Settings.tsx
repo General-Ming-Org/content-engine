@@ -8,6 +8,7 @@ import {
   triggerTask,
   getSmtpTo,
   setSmtpTo,
+  type TaskResult,
 } from "../lib/api";
 import { LinkedInSetup } from "../components/LinkedInSetup";
 import { useAuth } from "../lib/auth";
@@ -188,7 +189,7 @@ function EmailSettings({ settings }: { settings: Record<string, unknown> | undef
     mutationFn: setSmtpTo,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["smtp-to"] }),
   });
-  const testMut = useGuardedMutation<void, Error, void>({
+  const testMut = useGuardedMutation<TaskResult, Error, void>({
     mutationFn: () => triggerTask("morning_email"),
     successMessage: "Test email queued — check your inbox.",
     cooldownSeconds: 300,
