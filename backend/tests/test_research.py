@@ -83,7 +83,7 @@ async def test_research_sweep_mocked(mock_tavily):
         new_callable=AsyncMock,
         return_value=0,
     ):
-        with patch("services.research.searcher.enrich_topic", new_callable=AsyncMock, return_value=enriched):
+        with patch("services.research.deep_dive.enrich_topic", new_callable=AsyncMock, return_value=enriched):
             with patch("services.research.scorer.score_and_store") as mock_store:
                 mock_store.return_value = None
                 from services.research.searcher import sweep
