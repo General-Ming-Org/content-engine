@@ -23,9 +23,10 @@ terraform {
 }
 
 provider "google" {
-  project = var.project_id
-  region  = var.region
-  zone    = var.zone
+  project     = var.project_id
+  region      = var.region
+  zone        = var.zone
+  credentials = file(var.google_credentials_file)
 }
 
 data "google_project" "current" {
@@ -39,8 +40,11 @@ resource "google_project_service" "required" {
     "secretmanager.googleapis.com",
     "artifactregistry.googleapis.com",
     "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "sts.googleapis.com",
     "logging.googleapis.com",
     "monitoring.googleapis.com",
+    "dns.googleapis.com",
   ])
 
   project            = var.project_id

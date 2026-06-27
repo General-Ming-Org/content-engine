@@ -40,6 +40,13 @@ Thumbs.db
 .cursor/
 .claude/
 
-# Playwright
+# Terraform
+infra/terraform/terraform.tfvars
+infra/terraform/gcp-sa.json
+infra/terraform/*.sa.json
+gcp-sa.json
+infra/terraform/.terraform/
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.*
 playwright-report/
 test-results/

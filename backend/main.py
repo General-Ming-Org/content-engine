@@ -21,6 +21,20 @@ logger = structlog.get_logger(__name__)
 _redis_client: aioredis.Redis | None = None
 
 
+def _cors_origins() -> list[str]:
+    origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    if settings.app_public_url:
+        origins.append(settings.app_public_url.rstrip("/"))
+    return origins
+
+
+def _cors_origins() -> list[str]:
+    origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    if settings.app_public_url:
+        origins.append(settings.app_public_url.rstrip("/"))
+    return origins
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _redis_client
@@ -47,7 +61,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

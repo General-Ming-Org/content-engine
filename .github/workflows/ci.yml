@@ -115,3 +115,16 @@ jobs:
           terraform init -backend=false
           terraform validate
           terraform fmt -check -recursive
+
+  compose-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate production compose merge
+        env:
+          ARTIFACT_REGISTRY_URL: us-central1-docker.pkg.dev/example-project/content-engine
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml config -q
+          echo "docker compose overlays validate cleanly"

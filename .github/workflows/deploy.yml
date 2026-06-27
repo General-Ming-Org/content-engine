@@ -7,11 +7,11 @@ on:
 
 concurrency:
   group: deploy-prod
-  cancel-in-progress: false  # don't cancel mid-deploy
+  cancel-in-progress: false
 
 permissions:
   contents: read
-  id-token: write  # required for Workload Identity Federation
+  id-token: write
 
 jobs:
   build-and-push:
@@ -73,6 +73,26 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
+      - name: Validate compose config
+        env:
+          ARTIFACT_REGISTRY_URL: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/content-engine
+        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+
+      - name: Resolve deploy targets
+        id: target
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          if [ -z "${{ secrets.GCP_PUBLIC_HOST }}" ]; then
+            echo "GCP_PUBLIC_HOST secret is required (your Cloud DNS domain)." >&2
+            exit 1
+          fi
+          MCP_IP=$(gcloud compute instances describe ${{ secrets.GCP_VM_NAME }} \
+            --zone ${{ secrets.GCP_VM_ZONE }} --project "$GCP_PROJECT_ID" \
+            --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+          echo "host=${{ secrets.GCP_PUBLIC_HOST }}" >> "$GITHUB_OUTPUT"
+          echo "mcp_ip=$MCP_IP" >> "$GITHUB_OUTPUT"
+
       - name: Pull latest and restart on VM
         run: |
           gcloud compute ssh ${{ secrets.GCP_VM_NAME }} \
@@ -82,21 +102,19 @@ jobs:
               cd /opt/content-engine
               sudo git fetch --depth=1 origin main
               sudo git reset --hard origin/main
+              sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-              sudo docker compose exec -T backend alembic -c migrations/alembic.ini upgrade head"
+              sudo docker compose exec -T backend alembic -c migrations/alembic.ini upgrade head
+              sudo systemctl start content-engine-dns.service || \
+                sudo python3 scripts/update_cloud_dns.py"
 
-      - name: Smoke test health endpoint
+      - name: Post-deployment smoke tests
         env:
-          API_URL: http://${{ secrets.GCP_VM_IP }}:8000
+          API_URL: https://${{ steps.target.outputs.host }}
+          FRONTEND_URL: https://${{ steps.target.outputs.host }}
+          MCP_URL: http://${{ steps.target.outputs.mcp_ip }}:8002
+          SMOKE_INSECURE: ${{ secrets.GCP_TLS_TRUSTED == 'true' && '' || '1' }}
         run: |
-          for i in 1 2 3 4 5; do
-            if curl -fsS "$API_URL/api/health" | grep -q '"status"'; then
-              echo "Health check passed."
-              exit 0
-            fi
-            echo "Attempt $i failed, retrying in 10s..."
-            sleep 10
-          done
-          echo "Health check failed after 5 attempts."
-          exit 1
+          chmod +x scripts/smoke_test.sh
+          ./scripts/smoke_test.sh "$API_URL" "$FRONTEND_URL" "$MCP_URL"

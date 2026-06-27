@@ -36,8 +36,20 @@ if ! command -v docker &>/dev/null; then
   systemctl enable --now docker
 fi
 
-# ── Authenticate Docker to Artifact Registry ──────────────────────────────────
-gcloud auth configure-docker "$REGISTRY_HOST" --quiet
+# ── Authenticate Docker to Artifact Registry (metadata token — no gcloud SDK) ─
+metadata_access_token() {
+  curl -sf -H "Metadata-Flavor: Google" \
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+    | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])"
+}
+
+configure_docker_registry() {
+  local token
+  token=$(metadata_access_token)
+  echo "$token" | docker login -u oauth2accesstoken --password-stdin "https://$REGISTRY_HOST"
+}
+
+configure_docker_registry
 
 # ── Clone or update the repo ──────────────────────────────────────────────────
 APP_DIR=/opt/content-engine
@@ -48,10 +60,15 @@ else
   git -C "$APP_DIR" reset --hard "origin/$BRANCH"
 fi
 
-# ── Materialize .env from Secret Manager ──────────────────────────────────────
+# ── Materialize .env from Secret Manager (REST API + metadata token) ──────────
 fetch_secret() {
   local secret_name="$1"
-  gcloud secrets versions access latest --secret="$secret_name" 2>/dev/null || echo ""
+  local token response
+  token=$(metadata_access_token 2>/dev/null) || { echo ""; return; }
+  response=$(curl -sf -H "Authorization: Bearer $token" \
+    "https://secretmanager.googleapis.com/v1/projects/$PROJECT_ID/secrets/$secret_name/versions/latest:access" \
+    2>/dev/null) || { echo ""; return; }
+  python3 -c "import sys, json, base64; print(base64.b64decode(json.load(sys.stdin)['payload']['data']).decode(), end='')" <<< "$response"
 }
 
 ENV_FILE="$APP_DIR/.env"
@@ -67,6 +84,10 @@ REDIS_URL=redis://redis:6379/0
 QDRANT_URL=http://qdrant:6333
 QDRANT_API_KEY=$(fetch_secret qdrant-api-key)
 ANTHROPIC_API_KEY=$(fetch_secret anthropic-api-key)
+LLM_PROVIDER=${llm_provider}
+LLM_MODEL=${llm_model}
+EMBEDDING_PROVIDER=${embedding_provider}
+EMBEDDING_MODEL=${embedding_model}
 VOYAGE_API_KEY=$(fetch_secret voyage-api-key)
 OPENAI_API_KEY=$(fetch_secret openai-api-key)
 COHERE_API_KEY=$(fetch_secret cohere-api-key)
@@ -79,21 +100,60 @@ LINKEDIN_REFRESH_TOKEN=$(fetch_secret linkedin-refresh-token)
 LINKEDIN_PERSON_URN=$(fetch_secret linkedin-person-urn)
 SUBSTACK_EMAIL=$(fetch_secret substack-email)
 SUBSTACK_PASSWORD=$(fetch_secret substack-password)
-SMTP_HOST=${smtp_host:-smtp.gmail.com}
-SMTP_PORT=${smtp_port:-587}
+SMTP_HOST=${smtp_host}
+SMTP_PORT=${smtp_port}
 SMTP_USERNAME=$(fetch_secret smtp-username)
 SMTP_PASSWORD=$(fetch_secret smtp-password)
-SMTP_FROM_ADDRESS=${smtp_from_address:-}
-SMTP_TO_ADDRESS=${smtp_to_address:-}
+SMTP_FROM_ADDRESS=${smtp_from_address}
+SMTP_TO_ADDRESS=${smtp_to_address}
+APP_PUBLIC_URL=${app_public_url}
+API_PUBLIC_URL=${api_public_url}
+DOMAIN_NAME=${domain_name}
+DNS_MANAGED_ZONE=${dns_managed_zone}
+CERTBOT_EMAIL=${certbot_email}
+TLS_MODE=${tls_mode}
+GCP_PROJECT_ID=$PROJECT_ID
 MCP_KNOWLEDGE_TOKEN=$(fetch_secret mcp-knowledge-token)
 ARTIFACT_REGISTRY_URL=$REGISTRY_HOST/$PROJECT_ID/content-engine
 EOF
 chmod 600 "$ENV_FILE"
 
+# ── Ephemeral IP + Cloud DNS ───────────────────────────────────────────────────
+EXTERNAL_IP=$(curl -sf -H "Metadata-Flavor: Google" \
+  "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip")
+echo "[startup] ephemeral external IP: $EXTERNAL_IP"
+if grep -q '^VM_IP=' "$ENV_FILE"; then
+  sed -i "s/^VM_IP=.*/VM_IP=$EXTERNAL_IP/" "$ENV_FILE"
+else
+  echo "VM_IP=$EXTERNAL_IP" >> "$ENV_FILE"
+fi
+
+if [ -n "${dns_managed_zone}" ] && [ -n "${domain_name}" ]; then
+  echo "[startup] updating Cloud DNS A record"
+  DNS_MANAGED_ZONE="${dns_managed_zone}" \
+  DOMAIN_NAME="${domain_name}" \
+  GCP_PROJECT_ID="$PROJECT_ID" \
+  EXTERNAL_IP="$EXTERNAL_IP" \
+  python3 "$APP_DIR/scripts/update_cloud_dns.py" || echo "[startup] cloud dns update failed — continuing"
+fi
+
+# Re-run DNS update on every boot (startup script only runs on first boot / metadata change).
+cp "$APP_DIR/infra/terraform/systemd/content-engine-dns.service" /etc/systemd/system/content-engine-dns.service
+systemctl daemon-reload
+systemctl enable content-engine-dns.service
+systemctl start content-engine-dns.service || true
+
 # ── Start the stack ───────────────────────────────────────────────────────────
 cd "$APP_DIR"
-docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-docker compose exec -T backend alembic -c migrations/alembic.ini upgrade head || true
+COMPOSE_FILES="-f docker-compose.yml"
+if docker compose -f docker-compose.yml -f docker-compose.prod.yml pull 2>/dev/null; then
+  COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.prod.yml"
+else
+  echo "[startup] registry images not found — building locally with bootstrap overlay"
+  COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.bootstrap.yml"
+  docker compose $COMPOSE_FILES build
+fi
+docker compose $COMPOSE_FILES up -d
+docker compose $COMPOSE_FILES exec -T backend alembic -c migrations/alembic.ini upgrade head || true
 
 echo "[startup] $(date) — done"
