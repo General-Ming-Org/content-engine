@@ -1,7 +1,24 @@
 # Default VPC is fine — we only need firewall rules.
+# Ingress is allow-list only: ports in allowed_ingress_ports are open to the
+# internet; everything else (including public SSH) is denied by default.
+# The VM uses an ephemeral external IP — reach it via Cloud DNS (domain_name).
 
-resource "google_compute_firewall" "ssh" {
-  name    = "content-engine-allow-ssh"
+resource "google_compute_firewall" "app" {
+  name    = "content-engine-allow-app"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = var.allowed_ingress_ports
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["content-engine"]
+}
+
+# SSH is not exposed publicly. Admin + CI access via IAP tunnel only.
+resource "google_compute_firewall" "ssh_iap" {
+  name    = "content-engine-allow-ssh-iap"
   network = "default"
 
   allow {
@@ -9,25 +26,6 @@ resource "google_compute_firewall" "ssh" {
     ports    = ["22"]
   }
 
-  source_ranges = var.allowed_ssh_cidrs
+  source_ranges = ["35.235.240.0/20"]
   target_tags   = ["content-engine"]
-}
-
-resource "google_compute_firewall" "dashboard" {
-  name    = "content-engine-allow-dashboard"
-  network = "default"
-
-  allow {
-    protocol = "tcp"
-    # 3000: frontend, 8000: backend API, 8002: knowledge MCP (external clients)
-    ports = ["80", "443", "3000", "8000", "8002"]
-  }
-
-  source_ranges = var.dashboard_allowed_cidrs
-  target_tags   = ["content-engine"]
-}
-
-resource "google_compute_address" "static" {
-  name   = "content-engine-static-ip"
-  region = var.region
 }

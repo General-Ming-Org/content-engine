@@ -1,0 +1,10 @@
+# First-boot / no-Artifact-Registry overlay. Use with docker-compose.yml when images
+# have not been pushed yet:
+#   docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml up -d --build
+#
+# Switches backend off the dev --reload server (which hangs on a fresh VM) while
+# still building images locally. CI/CD uses docker-compose.prod.yml instead.
+
+services:
+  backend:
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2

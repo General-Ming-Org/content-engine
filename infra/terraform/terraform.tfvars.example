@@ -1,23 +1,31 @@
 # Copy to terraform.tfvars and fill in. Never commit terraform.tfvars.
 
-project_id  = "your-gcp-project-id"
-region      = "us-central1"
-zone        = "us-central1-a"
-github_repo = "your-github-user/content-engine"
-git_branch  = "main"
+project_id               = "your-gcp-project-id"
+google_credentials_file  = "gcp-sa.json"
+terraform_operator_email = "terraform-deployer@your-gcp-project-id.iam.gserviceaccount.com"
+enable_github_wif        = false
+region                   = "us-central1"
+zone                     = "us-central1-a"
+github_repo              = "your-github-user/content-engine"
+git_branch               = "main"
 
-# Lock these to your IP for any real deployment.
-# Find your IP: curl ifconfig.me
-allowed_ssh_cidrs       = ["YOUR.IP.HERE/32"]
-dashboard_allowed_cidrs = ["YOUR.IP.HERE/32"]
+# Use an EXISTING Cloud DNS zone when the domain already has records (portfolio, email, etc.):
+#   dns_managed_zone = "production"
+# Or let Terraform create a new zone (only for a fresh domain with no other records):
+#   dns_zone_dns_name = "example.com"
 
-# Optional. Leave empty to use the bare IP.
-domain_name = ""
+domain_name       = "contentengine.example.com"
+# dns_managed_zone = "production"
+# dns_zone_dns_name = "example.com"
 
-# ── Initial secret values ─────────────────────────────────────────────────────
-# Either fill these in here (and apply via terraform) OR set them to empty strings
-# and write versions later via `gcloud secrets versions add`. CI/CD typically does
-# the latter so secrets never touch your terraform state.
+# TLS: selfsigned (default) or letsencrypt (certbot; needs DNS delegated to Cloud DNS first).
+# tls_mode      = "selfsigned"
+# certbot_email = "you@example.com"
+
+# With nginx TLS, only 80/443 (+ 8002 for Knowledge MCP) need to be public.
+# allowed_ingress_ports = ["80", "443", "8002"]
+
+# ── Secrets — fill in terraform.tfvars, then run `terraform apply` ────────────
 
 anthropic_api_key      = ""
 voyage_api_key         = ""
@@ -35,14 +43,13 @@ smtp_password          = ""
 smtp_from_address      = ""
 smtp_to_address        = ""
 
-# Generate strong values:
-#   openssl rand -hex 32   →  app_secret_key
-#   openssl rand -hex 16   →  dashboard_password (or pick your own)
-#   openssl rand -hex 32   →  qdrant_api_key
-#   openssl rand -hex 32   →  mcp_knowledge_token
-#   openssl rand -hex 24   →  postgres_password
 app_secret_key      = ""
 dashboard_password  = ""
 qdrant_api_key      = ""
 mcp_knowledge_token = ""
 postgres_password   = ""
+
+# llm_provider       = "openai"
+# llm_model          = "gpt-4o-mini"
+# embedding_provider = "openai"
+# embedding_model    = "text-embedding-3-small"

@@ -321,7 +321,7 @@ cd infra/terraform
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars:
 #   - project_id, github_repo (owner/repo), git_branch
-#   - allowed_ssh_cidrs, dashboard_allowed_cidrs (lock to your IP)
+#   - allowed_ingress_ports (optional — defaults open 80/443/3000/8000/8002)
 #   - Generate and paste all secret values listed at the bottom
 
 # Apply
@@ -373,14 +373,15 @@ Watch the workflow in GitHub Actions. It builds backend + frontend images, pushe
 
 ### Rotating secrets
 
-The VM reads secrets fresh from Secret Manager on every boot. To rotate any credential:
+The VM reads secrets from Secret Manager on every boot (via the metadata service — no gcloud SDK). To rotate any credential:
+
+1. Update the value in `infra/terraform/terraform.tfvars`.
+2. Run `terraform apply`.
+3. SSH into the VM (Cloud Console or IAP) and re-run the startup script:
 
 ```bash
-echo -n "new-value" | gcloud secrets versions add anthropic-api-key --data-file=-
-
-# Re-materialize .env on the VM and bounce the affected services
-gcloud compute ssh content-engine --zone us-central1-a --tunnel-through-iap \
-  -- 'sudo bash /var/lib/google/startup-script.sh'
+sudo bash /var/lib/google/startup-script.sh
+cd /opt/content-engine && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --force-recreate
 ```
 
 ### Optional: SSL with a custom domain

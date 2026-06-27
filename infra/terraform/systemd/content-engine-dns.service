@@ -1,0 +1,13 @@
+[Unit]
+Description=Update Cloud DNS A record when the VM boots
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/opt/content-engine/.env
+ExecStart=/usr/bin/python3 /opt/content-engine/scripts/update_cloud_dns.py
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
