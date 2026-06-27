@@ -1,10 +1,11 @@
 import uuid
 
 from sqlalchemy import ForeignKey, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
+from models.db_types import JsonDocument
 
 
 class UserSetting(Base):
@@ -23,4 +24,4 @@ class UserSetting(Base):
         index=True,
     )
     key: Mapped[str] = mapped_column(Text, nullable=False)
-    value: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    value: Mapped[dict] = mapped_column(JsonDocument, nullable=False)

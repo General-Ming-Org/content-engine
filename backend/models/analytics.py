@@ -2,10 +2,11 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Date, DateTime, Enum, Float, ForeignKey, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
+from models.db_types import JsonDocument
 
 PlatformEnum = Enum("linkedin", "substack", name="platform_enum")
 ReportTypeEnum = Enum("daily_summary", "weekly_deep_dive", name="report_type_enum")
@@ -24,7 +25,7 @@ class MetricSnapshot(Base):
     )
     snapshot_date: Mapped[date] = mapped_column(Date, nullable=False)
     platform: Mapped[str] = mapped_column(PlatformEnum, nullable=False)
-    data: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    data: Mapped[dict] = mapped_column(JsonDocument, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -43,10 +44,10 @@ class StrategyReport(Base):
     report_type: Mapped[str] = mapped_column(ReportTypeEnum, nullable=False)
     period_start: Mapped[date] = mapped_column(Date, nullable=False)
     period_end: Mapped[date] = mapped_column(Date, nullable=False)
-    report_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    top_posts: Mapped[dict | None] = mapped_column(JSONB)
-    benchmark_comparison: Mapped[dict | None] = mapped_column(JSONB)
-    goal_progress: Mapped[dict | None] = mapped_column(JSONB)
+    report_json: Mapped[dict] = mapped_column(JsonDocument, nullable=False)
+    top_posts: Mapped[dict | None] = mapped_column(JsonDocument)
+    benchmark_comparison: Mapped[dict | None] = mapped_column(JsonDocument)
+    goal_progress: Mapped[dict | None] = mapped_column(JsonDocument)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
