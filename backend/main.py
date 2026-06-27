@@ -28,13 +28,6 @@ def _cors_origins() -> list[str]:
     return origins
 
 
-def _cors_origins() -> list[str]:
-    origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
-    if settings.app_public_url:
-        origins.append(settings.app_public_url.rstrip("/"))
-    return origins
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _redis_client
