@@ -2,10 +2,11 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
+from models.db_types import JsonDocument, StringList
 
 VoiceStyleEnum = Enum("opinionated", "analytical", "tutorial", name="voice_style_enum")
 PostStatusEnum = Enum(
@@ -35,14 +36,14 @@ class Post(Base):
         UUID(as_uuid=True), ForeignKey("articles.id", ondelete="SET NULL"), nullable=True
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    hashtags: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
+    hashtags: Mapped[list[str] | None] = mapped_column(StringList)
     voice_style: Mapped[str] = mapped_column(VoiceStyleEnum, nullable=False)
     status: Mapped[str] = mapped_column(PostStatusEnum, nullable=False, default="draft")
     queued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     linkedin_post_id: Mapped[str | None] = mapped_column(Text)
-    metrics: Mapped[dict | None] = mapped_column(JSONB)
+    metrics: Mapped[dict | None] = mapped_column(JsonDocument)
     is_manual: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -81,7 +82,7 @@ class Article(Base):
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     substack_url: Mapped[str | None] = mapped_column(Text)
-    metrics: Mapped[dict | None] = mapped_column(JSONB)
+    metrics: Mapped[dict | None] = mapped_column(JsonDocument)
     is_manual: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

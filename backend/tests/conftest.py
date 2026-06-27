@@ -52,6 +52,13 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
+def mock_llm_generate():
+    """Mock LiteLLM entrypoint used by all content/research agents."""
+    with patch("services.ai.llm_client.generate", new_callable=AsyncMock) as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_anthropic():
     """Mock Anthropic API client — returns deterministic responses."""
     with patch("anthropic.AsyncAnthropic") as mock_class:

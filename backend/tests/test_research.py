@@ -61,15 +61,35 @@ def test_query_rotation():
 
 
 @pytest.mark.asyncio
-async def test_research_sweep_mocked(mock_tavily, mock_anthropic):
+async def test_research_sweep_mocked(mock_tavily):
     """Full sweep with mocked external calls should complete without error."""
-    from unittest.mock import patch
-    with patch("services.research.deep_dive._fetch_url_content", return_value="test content"):
-        with patch("services.research.scorer.score_and_store") as mock_store:
-            mock_store.return_value = None
-            from services.research.searcher import sweep
-            result = await sweep()
-            assert result["status"] == "complete"
-            assert result["results_stored"] >= 0
-            assert result["results_skipped"] >= 0
-            assert result["results_found"] == result["results_stored"] + result["results_skipped"]
+    from unittest.mock import AsyncMock, patch
+
+    enriched = {
+        "title": "Test Article: eBPF in Production",
+        "summary": "Test summary",
+        "sources": [],
+        "domain": "sre_infra",
+        "synthesis": {
+            "confidence": 8,
+            "key_facts": ["fact 1"],
+            "trade_offs": "trade-off",
+        },
+        "from_cache": False,
+    }
+
+    with patch(
+        "services.research.dedupe.archive_duplicate_topics",
+        new_callable=AsyncMock,
+        return_value=0,
+    ):
+        with patch("services.research.searcher.enrich_topic", new_callable=AsyncMock, return_value=enriched):
+            with patch("services.research.scorer.score_and_store") as mock_store:
+                mock_store.return_value = None
+                from services.research.searcher import sweep
+
+                result = await sweep()
+                assert result["status"] == "complete"
+                assert result["results_stored"] >= 0
+                assert result["results_skipped"] >= 0
+                assert result["results_found"] == result["results_stored"] + result["results_skipped"]
