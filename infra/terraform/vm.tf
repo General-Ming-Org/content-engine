@@ -6,6 +6,8 @@ resource "google_compute_instance" "engine" {
   zone         = var.zone
   tags         = ["content-engine"]
 
+  allow_stopping_for_update = true
+
   boot_disk {
     initialize_params {
       image = "debian-cloud/debian-12"

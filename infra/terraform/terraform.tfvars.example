@@ -18,6 +18,9 @@ domain_name       = "contentengine.example.com"
 # dns_managed_zone = "production"
 # dns_zone_dns_name = "example.com"
 
+# e2-standard-2 (8 GB) recommended for local Docker builds; e2-medium (4 GB) if CI pushes images.
+# vm_machine_type = "e2-standard-2"
+
 # TLS: selfsigned (default) or letsencrypt (certbot; needs DNS delegated to Cloud DNS first).
 # tls_mode      = "selfsigned"
 # certbot_email = "you@example.com"
