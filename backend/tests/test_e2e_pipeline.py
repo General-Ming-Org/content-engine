@@ -10,7 +10,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_full_pipeline(db_session, mock_anthropic, mock_tavily):
+async def test_full_pipeline(db_session, test_user, mock_anthropic, mock_tavily):
     """
     Happy path: topic created → content generated → queued → auto-published after 1hr → metrics.
     """
@@ -54,7 +54,7 @@ async def test_full_pipeline(db_session, mock_anthropic, mock_tavily):
         }
         with patch("services.content.calendar._decide_pairing", AsyncMock(return_value="linkedin_only")):
             from services.content.calendar import generate_for_topic
-            result = await generate_for_topic(str(topic.id))
+            result = await generate_for_topic(str(topic.id), test_user.id)
 
     assert "post_id" in result
     assert result["decision"] == "linkedin_only"
@@ -86,12 +86,13 @@ async def test_full_pipeline(db_session, mock_anthropic, mock_tavily):
 
 
 @pytest.mark.asyncio
-async def test_cancel_during_queue_window(db_session):
+async def test_cancel_during_queue_window(db_session, test_user):
     """Cancelling a queued post before 1hr should prevent publish."""
     from models.content import Post
 
     post = Post(
         id=uuid.uuid4(),
+        user_id=test_user.id,
         content="Test post content " + "X" * 1000,
         hashtags=["#test"],
         voice_style="analytical",

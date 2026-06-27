@@ -1,16 +1,18 @@
 """Shared pytest fixtures for all tests. All external APIs are mocked — no real calls."""
-import asyncio
+import uuid
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from database import Base, get_db
 from main import app
+from models.user import User
 
 # In-memory SQLite for tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -25,19 +27,53 @@ _TestSessionLocal = async_sessionmaker(
 )
 
 
+class _SessionContext:
+    """Route production AsyncSessionLocal() calls to the test session."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def __aenter__(self) -> AsyncSession:
+        return self._session
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        if exc is not None:
+            await self._session.rollback()
+
+
 @pytest_asyncio.fixture
 async def setup_db():
     async with _test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with _test_engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(delete(table))
 
 
 @pytest_asyncio.fixture
 async def db_session(setup_db) -> AsyncGenerator[AsyncSession, None]:
     async with _TestSessionLocal() as session:
-        yield session
+        def _session_factory() -> _SessionContext:
+            return _SessionContext(session)
+
+        with patch("database.AsyncSessionLocal", side_effect=_session_factory):
+            yield session
+
+
+@pytest_asyncio.fixture
+async def test_user(db_session: AsyncSession) -> User:
+    user = User(
+        id=uuid.uuid4(),
+        email=f"test-{uuid.uuid4().hex[:8]}@example.com",
+        password_hash="test-password-hash",
+        name="Test User",
+        role="admin",
+        is_active=True,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    return user
 
 
 @pytest_asyncio.fixture
