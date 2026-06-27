@@ -82,7 +82,7 @@ services:
     image: ${ARTIFACT_REGISTRY_URL}/frontend:latest
     build: null
     ports: !reset []
-    volumes: []
+    volumes: !reset []
     environment:
       VITE_API_URL: ""
     restart: always

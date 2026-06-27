@@ -33,9 +33,9 @@ variable "zone" {
 }
 
 variable "vm_machine_type" {
-  description = "Compute Engine machine type. e2-small (~$15/mo) handles the stack comfortably."
+  description = "Compute Engine machine type. Use e2-standard-2 (8 GB) when the VM builds Docker images locally; e2-medium (4 GB) is enough if CI pushes pre-built images."
   type        = string
-  default     = "e2-small"
+  default     = "e2-standard-2"
 }
 
 variable "vm_disk_size_gb" {
