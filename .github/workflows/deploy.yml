@@ -76,7 +76,10 @@ jobs:
       - name: Validate compose config
         env:
           ARTIFACT_REGISTRY_URL: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/content-engine
-        run: docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
+          TAVILY_API_KEY: ci-placeholder
+        run: |
+          cp .env.example .env
+          docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
 
       - name: Resolve deploy targets
         id: target

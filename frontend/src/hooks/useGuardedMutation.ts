@@ -73,22 +73,22 @@ export function useGuardedMutation<
 
   const mutation = useMutation<TData, TError, TVariables, TContext>({
     ...mutationOptions,
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, context, mutationContext) => {
       if (successMessage) toast.success(successMessage);
-      onSuccess?.(data, variables, context);
+      onSuccess?.(data, variables, context, mutationContext);
     },
-    onError: (error, variables, context) => {
+    onError: (error, variables, context, mutationContext) => {
       if (useRetryAfter) {
         const retry = getRetryAfterSeconds(error);
         if (retry != null) applyCooldown(retry);
         else if (cooldownSeconds > 0) applyCooldown(cooldownSeconds);
       }
       toast.error(errorMessage ? errorMessage(error) : getApiErrorMessage(error));
-      onError?.(error, variables, context);
+      onError?.(error, variables, context, mutationContext);
     },
-    onSettled: (data, error, variables, context) => {
+    onSettled: (data, error, variables, context, mutationContext) => {
       inFlightRef.current = false;
-      onSettled?.(data, error, variables, context);
+      onSettled?.(data, error, variables, context, mutationContext);
     },
   });
 

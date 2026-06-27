@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow, format } from "date-fns";
-import { CheckCircle, Clock, XCircle, Zap, Users, Eye, TrendingUp, Target } from "lucide-react";
+import { CheckCircle, XCircle, Users, Eye, TrendingUp, Target } from "lucide-react";
 import {
   getPosts,
   getGoals,

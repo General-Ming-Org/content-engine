@@ -1,15 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Eye, ThumbsUp, MessageSquare, Share2, ExternalLink } from "lucide-react";
+import { Eye, ThumbsUp, ExternalLink } from "lucide-react";
 import { getPosts, getArticles, type Post, type Article } from "../lib/api";
 
 type Platform = "all" | "linkedin" | "substack";
 type Status = "all" | "draft" | "queued" | "scheduled" | "published" | "failed" | "cancelled";
-
-const DOMAIN_LABELS: Record<string, string> = {
-  ai_ml: "AI/ML", software_eng: "Eng", sre_infra: "SRE", data_eng: "Data",
-};
 
 function StatusBadge({ status }: { status: string }) {
   const cls: Record<string, string> = {
