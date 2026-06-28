@@ -1,4 +1,4 @@
-"""Tavily/Serper search integration with domain-balanced query rotation."""
+"""Tavily/Serper search integration with AI-heavy domain query rotation."""
 import asyncio
 import hashlib
 from typing import Any
@@ -7,61 +7,18 @@ import httpx
 import structlog
 
 from config import get_settings
+from services.research.queries import DOMAIN_QUERIES, DOMAIN_SWEEP_COUNTS
 
 logger = structlog.get_logger(__name__)
-settings = get_settings()
-
-# Rotating queries per domain — prevents staleness and ensures broad coverage.
-DOMAIN_QUERIES: dict[str, list[str]] = {
-    "ai_ml": [
-        "latest AI ML research papers 2025",
-        "LLM fine-tuning techniques benchmarks",
-        "RAG retrieval augmented generation production",
-        "AI inference optimization edge deployment",
-        "multimodal models vision language production",
-        "AI safety alignment techniques 2025",
-        "vector databases embedding search performance",
-        "AI agents tool use production systems",
-    ],
-    "software_eng": [
-        "software architecture patterns 2025",
-        "distributed systems consensus reliability",
-        "database performance optimization techniques",
-        "API design REST GraphQL gRPC comparison",
-        "observability tracing metrics logs engineering",
-        "platform engineering developer experience IDP",
-        "Rust Go performance systems programming",
-        "WebAssembly WASM production use cases",
-    ],
-    "sre_infra": [
-        "Kubernetes production reliability patterns",
-        "cloud cost optimization FinOps engineering",
-        "incident management postmortem SRE practices",
-        "eBPF Linux kernel observability 2025",
-        "GitOps ArgoCD FluxCD production patterns",
-        "service mesh Istio Linkerd Envoy comparison",
-        "chaos engineering resilience testing",
-        "SLO error budget burn rate monitoring",
-    ],
-    "data_eng": [
-        "data lakehouse architecture 2025",
-        "Apache Spark Flink streaming processing",
-        "dbt data transformation analytics engineering",
-        "data quality testing pipeline validation",
-        "real-time analytics OLAP column stores",
-        "Iceberg Delta Lake Hudi table formats comparison",
-        "data mesh federated governance patterns",
-        "MLOps feature store model serving production",
-    ],
-}
 
 _query_counters: dict[str, int] = {domain: 0 for domain in DOMAIN_QUERIES}
 
+# Pace LLM enrichment to stay within provider rate limits.
 SWEEP_ENRICH_CONCURRENCY = 1
 
 
 def _sweep_limits() -> tuple[int, int]:
-    """(results per domain, max topics to enrich) from env."""
+    """(results per search, max topics to enrich) from env."""
     s = get_settings()
     per_domain = max(1, s.research_sweep_per_domain)
     max_topics = max(1, s.research_sweep_max_topics)
@@ -77,6 +34,7 @@ def _next_query(domain: str) -> str:
 
 async def search_tavily(query: str, max_results: int = 8) -> list[dict[str, Any]]:
     """Search Tavily and return raw results."""
+    settings = get_settings()
     if not settings.tavily_api_key:
         logger.warning("tavily_not_configured")
         return []
@@ -98,6 +56,7 @@ async def search_tavily(query: str, max_results: int = 8) -> list[dict[str, Any]
 
 async def search_serper(query: str, max_results: int = 8) -> list[dict[str, Any]]:
     """Serper fallback search."""
+    settings = get_settings()
     if not settings.serper_api_key:
         return []
     async with httpx.AsyncClient(timeout=15) as client:
@@ -120,7 +79,28 @@ async def search(query: str, max_results: int = 8) -> list[dict[str, Any]]:
             return results
     except Exception as exc:
         logger.warning("tavily_failed_falling_back", error=str(exc))
-    return await search_serper(query, max_results)
+    try:
+        return await search_serper(query, max_results)
+    except Exception as exc:
+        logger.warning("serper_failed", error=str(exc))
+        return []
+
+
+def _select_results_for_enrichment(
+    by_domain: dict[str, list[dict[str, Any]]],
+    max_topics: int,
+) -> list[dict[str, Any]]:
+    """Round-robin cap so every domain gets representation before max_topics cuts in."""
+    queues = {domain: list(results) for domain, results in by_domain.items()}
+    selected: list[dict[str, Any]] = []
+    domains = list(DOMAIN_QUERIES.keys())
+    idx = 0
+    while len(selected) < max_topics and any(queues[d] for d in domains):
+        domain = domains[idx % len(domains)]
+        if queues[domain]:
+            selected.append(queues[domain].pop(0))
+        idx += 1
+    return selected
 
 
 def _url_fingerprint(url: str) -> str:
@@ -128,7 +108,7 @@ def _url_fingerprint(url: str) -> str:
 
 
 async def sweep(task_id: str | None = None) -> dict[str, Any]:
-    """Run a full research sweep across all four domains."""
+    """Run a research sweep — AI-heavy (3 ai_ml searches, 1 per other domain)."""
     from services.research.dedupe import archive_duplicate_topics
     from services.research.deep_dive import enrich_topic
     from services.research.errors import ResearchProviderError
@@ -145,29 +125,30 @@ async def sweep(task_id: str | None = None) -> dict[str, Any]:
         task_id=task_id,
         per_domain=per_domain,
         max_topics=max_topics,
+        domain_sweep_counts=DOMAIN_SWEEP_COUNTS,
+        enrich_concurrency=SWEEP_ENRICH_CONCURRENCY,
     )
-    all_results: list[dict[str, Any]] = []
+    by_domain: dict[str, list[dict[str, Any]]] = {d: [] for d in DOMAIN_QUERIES}
 
-    # Search all domains in parallel
-    search_tasks = {
-        domain: search(_next_query(domain), max_results=per_domain)
-        for domain in DOMAIN_QUERIES
-    }
-    domain_results = await asyncio.gather(
-        *[search_tasks[d] for d in DOMAIN_QUERIES],
+    search_specs: list[tuple[str, str]] = []
+    for domain, count in DOMAIN_SWEEP_COUNTS.items():
+        for _ in range(count):
+            search_specs.append((domain, _next_query(domain)))
+
+    search_outcomes = await asyncio.gather(
+        *[search(query, max_results=per_domain) for _, query in search_specs],
         return_exceptions=True,
     )
 
-    for domain, results in zip(DOMAIN_QUERIES.keys(), domain_results):
+    for (domain, _), results in zip(search_specs, search_outcomes):
         if isinstance(results, Exception):
             logger.error("domain_search_failed", domain=domain, error=str(results))
             continue
         for r in results:
             r["domain"] = domain
-        all_results.extend(results)
+        by_domain[domain].extend(results)
 
-    if len(all_results) > max_topics:
-        all_results = all_results[:max_topics]
+    all_results = _select_results_for_enrichment(by_domain, max_topics)
 
     logger.info("research_sweep_raw_results", count=len(all_results))
 
@@ -175,6 +156,7 @@ async def sweep(task_id: str | None = None) -> dict[str, Any]:
     stored = 0
     skipped = 0
     skip_reasons: dict[str, int] = {}
+
     for index, result in enumerate(all_results, start=1):
         if task_id:
             progress_enriching(
