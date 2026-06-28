@@ -58,6 +58,7 @@ The system is multi-user: most agents iterate over `users WHERE is_active = true
 
 **Key files**:
 - `searcher.py` — search execution, domain query rotation, sweep orchestration
+- `queries.py` — AI-heavy Tavily query lists and per-domain sweep counts (3:1:1:1)
 - `deep_dive.py` — URL fetch, text extraction, Claude API synthesis call
 - `scorer.py` — scoring formula, dedup logic, DB persistence
 - `router.py` — API endpoints: list, trigger sweep, pin/archive
@@ -66,11 +67,11 @@ The system is multi-user: most agents iterate over `users WHERE is_active = true
 **Writes to DB**: `research_topics` (inserts new topics)
 
 **Hard constraints**:
-- Equal coverage across all four domains (ai_ml, software_eng, sre_infra, data_eng)
+- AI-heavy sweep weighting: 3 Tavily searches for `ai_ml`, 1 each for `software_eng`, `sre_infra`, and `data_eng` per sweep (queries in `services/research/queries.py`). Content generation still respects per-user domain prefs.
 - Topics with confidence < 5 from Claude synthesis are discarded before storing
 - All Claude synthesis prompts come from `prompts.py` — no inline prompts
 - Claude calls go through `services.ai.claude_client.generate_json("research_synthesis", ...)` — routed to Haiku tier
-- Max 3 concurrent source fetches per sweep (semaphore in `searcher.py`)
+- Max 3 concurrent source fetches per topic during deep-dive (`deep_dive.py`)
 - Dedup is semantic (Qdrant vector search) with n-gram fallback when Qdrant is unreachable
 - Before deep-diving, `deep_dive.check_cache()` queries `KIND_RESEARCH` — if a recent topic is >85% similar, the synthesis is reused and Tavily / Claude calls are skipped entirely
 - After storing a new topic, embed it into Qdrant and write an `embedding_records` row

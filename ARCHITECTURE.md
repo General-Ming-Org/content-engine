@@ -124,7 +124,7 @@ The pipeline is driven by Celery Beat. Each scheduled task is a thin Celery wrap
 
 ### 2.1 Research → Generate
 
-`services/research/searcher.py` rotates domain-specific Tavily queries across `ai_ml`, `software_eng`, `sre_infra`, `data_eng`. For each promising result, `deep_dive.py` fetches 2-4 source URLs concurrently (semaphore-bounded), extracts substantive text, and calls Claude with `RESEARCH_SYNTHESIS_PROMPT` from [`prompts.py`](backend/services/content/prompts.py). Output is a structured JSON with `summary`, `key_facts`, `why_it_matters`, `trade_offs`, `suggested_voice`, `confidence`.
+`services/research/searcher.py` runs an AI-heavy sweep (3 Tavily searches for `ai_ml`, 1 each for AI-adjacent queries in `software_eng`, `sre_infra`, and `data_eng`; query lists live in `queries.py`). For each promising result, `deep_dive.py` fetches 2-4 source URLs, extracts substantive text, and calls Claude with `RESEARCH_SYNTHESIS_PROMPT` from [`prompts.py`](backend/services/content/prompts.py). Output is a structured JSON with `summary`, `key_facts`, `why_it_matters`, `trade_offs`, `suggested_voice`, `confidence`.
 
 `scorer.py` computes `0.25*recency + 0.25*signal + 0.25*uniqueness + 0.25*audience_fit`, dedupes against existing `new`/`assigned` topics via cosine similarity (threshold 0.85), and inserts with `status='new'`. Topics with Claude confidence < 5 are discarded.
 
