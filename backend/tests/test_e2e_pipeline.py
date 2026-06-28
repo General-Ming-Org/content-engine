@@ -10,7 +10,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_full_pipeline(db_session, test_user, mock_anthropic, mock_tavily):
+async def test_full_pipeline(db_session, test_user, mock_tavily):
     """
     Happy path: topic created → content generated → queued → auto-published after 1hr → metrics.
     """
@@ -42,11 +42,7 @@ async def test_full_pipeline(db_session, test_user, mock_anthropic, mock_tavily)
     await db_session.commit()
 
     # 2. Mock content generation and generate content
-    mock_anthropic.messages.create = AsyncMock(return_value=MagicMock(
-        content=[MagicMock(text="linkedin_only")]
-    ))
-
-    with patch("services.content.linkedin.generate_post") as mock_gen:
+    with patch("services.content.calendar.generate_post", new_callable=AsyncMock) as mock_gen:
         mock_gen.return_value = {
             "content": "eBPF changed how we do observability in production.\n\n" + "X" * 1100 + "\n\n#eBPF #SRE #Observability #Linux",
             "hashtags": ["#eBPF", "#SRE", "#Observability", "#Linux"],
@@ -73,7 +69,7 @@ async def test_full_pipeline(db_session, test_user, mock_anthropic, mock_tavily)
     await db_session.commit()
 
     # 5. Process queue (should auto-publish)
-    with patch("services.publishing.linkedin_api.publish_post") as mock_pub:
+    with patch("services.publishing.queue_manager.publish_post", new_callable=AsyncMock) as mock_pub:
         mock_pub.return_value = {"status": "published", "linkedin_post_id": "li-test-456"}
         from services.publishing.queue_manager import process_queue
         pub_result = await process_queue()
