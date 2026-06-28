@@ -23,6 +23,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify GCP deploy secrets
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOYER_SA: ${{ secrets.GCP_DEPLOYER_SA }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+        run: |
+          missing=0
+          for name in WIF_PROVIDER DEPLOYER_SA GCP_PROJECT_ID GCP_REGION; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing GitHub secret for deploy — see infra/terraform/README.md (GitHub Actions secrets)."
+              echo "  Required: GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOYER_SA, GCP_PROJECT_ID, GCP_REGION"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Enable WIF: set enable_github_wif=true in terraform.tfvars, terraform apply, then copy outputs to GitHub secrets."
+            exit 1
+          fi
+
       - id: tag
         run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -66,6 +86,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify GCP deploy secrets
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOYER_SA: ${{ secrets.GCP_DEPLOYER_SA }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+          GCP_VM_NAME: ${{ secrets.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ secrets.GCP_VM_ZONE }}
+          GCP_PUBLIC_HOST: ${{ secrets.GCP_PUBLIC_HOST }}
+        run: |
+          missing=0
+          for name in WIF_PROVIDER DEPLOYER_SA GCP_PROJECT_ID GCP_REGION GCP_VM_NAME GCP_VM_ZONE GCP_PUBLIC_HOST; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing GitHub secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
@@ -97,18 +136,24 @@ jobs:
           echo "mcp_ip=$MCP_IP" >> "$GITHUB_OUTPUT"
 
       - name: Pull latest and restart on VM
+        env:
+          REGISTRY_HOST: ${{ secrets.GCP_REGION }}-docker.pkg.dev
+          CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
         run: |
           gcloud compute ssh ${{ secrets.GCP_VM_NAME }} \
             --zone ${{ secrets.GCP_VM_ZONE }} \
             --tunnel-through-iap \
+            --quiet \
             --command "set -e
               cd /opt/content-engine
               sudo git fetch --depth=1 origin main
               sudo git reset --hard origin/main
+              sudo bash scripts/vm_registry_login.sh ${REGISTRY_HOST}
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
-              sudo docker compose exec -T backend alembic -c migrations/alembic.ini upgrade head
+              sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml restart nginx
+              sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend alembic -c migrations/alembic.ini upgrade head
               sudo systemctl start content-engine-dns.service || \
                 sudo python3 scripts/update_cloud_dns.py"
 

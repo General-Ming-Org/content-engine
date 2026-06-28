@@ -13,6 +13,10 @@ source .env
 set +a
 
 REGISTRY="${ARTIFACT_REGISTRY_URL:-us-central1-docker.pkg.dev/portfolio-424503/content-engine}"
+REGISTRY_HOST="${REGISTRY%%/*}"
+
+echo "[repair] authenticating to Artifact Registry..."
+bash scripts/vm_registry_login.sh "$REGISTRY_HOST"
 
 echo "[repair] building backend + frontend locally..."
 docker compose -f docker-compose.yml -f docker-compose.bootstrap.yml build backend frontend

@@ -3,10 +3,10 @@
 project_id               = "your-gcp-project-id"
 google_credentials_file  = "gcp-sa.json"
 terraform_operator_email = "terraform-deployer@your-gcp-project-id.iam.gserviceaccount.com"
-enable_github_wif        = false
+enable_github_wif        = true
 region                   = "us-central1"
 zone                     = "us-central1-a"
-github_repo              = "your-github-user/content-engine"
+github_repo              = "General-Ming-Org/content-engine"
 git_branch               = "main"
 
 # Use an EXISTING Cloud DNS zone when the domain already has records (portfolio, email, etc.):
