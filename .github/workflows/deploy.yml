@@ -152,9 +152,6 @@ jobs:
                 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' \
                 | python3 -c \"import sys, json; print(json.load(sys.stdin)['access_token'])\")
               echo \"\$token\" | sudo docker login -u oauth2accesstoken --password-stdin https://${REGISTRY_HOST}
-              if [ -f scripts/vm_registry_login.sh ]; then
-                sudo bash scripts/vm_registry_login.sh ${REGISTRY_HOST}
-              fi
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
