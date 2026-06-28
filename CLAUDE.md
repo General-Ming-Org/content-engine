@@ -22,7 +22,7 @@ Autonomous technical content creation, publishing, and analytics system. Multipl
 | Embeddings | Voyage / OpenAI / Cohere via swappable provider abstraction; operator-paid |
 | MCP | Tavily MCP (internal) + custom Knowledge MCP (internal + external, per-user bearer tokens) |
 | Search | Tavily (primary), Serper (fallback) — operator-paid |
-| LinkedIn | Official UGC API; operator-level Developer App, per-user OAuth tokens in DB |
+| LinkedIn | Official UGC API; per-user Developer App + OAuth tokens in DB |
 | Substack | Playwright browser automation; per-user creds in DB (encrypted) |
 | Email | aiosmtplib SMTP; operator-paid outbound, per-user recipient address |
 | Containers | Docker + Docker Compose |

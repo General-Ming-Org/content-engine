@@ -15,7 +15,6 @@ from database import AsyncSessionLocal
 from models.user import User
 from models.user_credentials import UserCredential
 from services.auth.deps import get_current_user
-from config import get_settings
 from services.credentials.store import (
     delete_credential,
     get_linkedin_app_credential,
@@ -29,8 +28,6 @@ from services.credentials.store import (
     save_smtp_to,
     save_substack_credential,
 )
-
-_app_settings = get_settings()
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
@@ -111,17 +108,6 @@ async def linkedin_app_status(user: User = Depends(get_current_user)) -> dict:
             configured=True,
             source="user",
             client_id=user_cred["client_id"],
-            has_secret=True,
-            redirect_uri=redirect_uri,
-            redirect_mode=redirect_mode,
-            redirect_options=redirect_options,
-        )
-
-    if _app_settings.linkedin_client_id and _app_settings.linkedin_client_secret:
-        return _linkedin_app_payload(
-            configured=True,
-            source="env",
-            client_id=None,
             has_secret=True,
             redirect_uri=redirect_uri,
             redirect_mode=redirect_mode,

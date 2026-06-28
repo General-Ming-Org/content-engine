@@ -181,7 +181,7 @@ export interface LinkedInRedirectOption {
 
 export interface LinkedInAppStatus {
   configured: boolean;
-  source: "user" | "env" | null;
+  source: "user" | null;
   client_id: string | null;
   has_secret: boolean;
   redirect_uri: string;

@@ -218,13 +218,6 @@ export function LinkedInSetup() {
         redirectModeBusy={redirectModeMut.isPending}
       />
 
-      {app?.source === "env" && (
-        <p className="text-xs text-amber-400/90 mt-4 px-3 py-2 rounded-lg border border-amber-800/40 bg-amber-950/20">
-          Server-level LinkedIn credentials are active. Save your own Client ID and Secret below to
-          use your app instead.
-        </p>
-      )}
-
       <div className="mt-5 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
           Step 2 — App credentials
