@@ -1,6 +1,6 @@
 """LinkedIn OAuth 2.0 via Authlib (authorization URL, token exchange, userinfo).
 
-Per-user Client ID / Secret from ``user_credentials`` (or env fallback).
+Per-user Client ID / Secret from ``user_credentials`` (Settings → LinkedIn).
 Publishing and API calls remain in ``linkedin_api.py``.
 """
 from __future__ import annotations
@@ -158,14 +158,25 @@ async def create_oauth_client(user_id: uuid.UUID) -> AsyncOAuth2Client:
     )
 
 
-async def create_authorization_url(user_id: uuid.UUID) -> tuple[str, str]:
-    """Return (authorize_url, redirect_uri) for the member OAuth consent screen."""
+async def create_authorization_url(user_id: uuid.UUID) -> tuple[str, str, str]:
+    """Return (authorize_url, redirect_uri, client_id) for the member OAuth consent screen."""
     redirect_uri = await resolve_linkedin_redirect_uri(user_id)
+    client_id, _ = await require_linkedin_app_credentials(user_id)
     client = await create_oauth_client(user_id)
     try:
         state = sign_oauth_state(user_id)
-        uri, _ = client.create_authorization_url(LINKEDIN_AUTH_URL, state=state)
-        return uri, redirect_uri
+        uri, _ = client.create_authorization_url(
+            LINKEDIN_AUTH_URL,
+            state=state,
+            redirect_uri=redirect_uri,
+        )
+        logger.info(
+            "linkedin_oauth_url_created",
+            user_id=str(user_id),
+            client_id=client_id,
+            redirect_uri=redirect_uri,
+        )
+        return uri, redirect_uri, client_id
     finally:
         await client.aclose()
 

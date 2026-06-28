@@ -50,10 +50,11 @@ async def linkedin_oauth_url(
             detail="LinkedIn Developer App not configured. Add Client ID and Client Secret in Settings.",
         )
 
-    url, redirect_uri = await create_authorization_url(user.id)
+    url, redirect_uri, client_id = await create_authorization_url(user.id)
     return {
         "url": url,
         "redirect_uri": redirect_uri,
+        "client_id": client_id,
         "scopes": LINKEDIN_OAUTH_SCOPES,
     }
 

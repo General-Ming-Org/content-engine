@@ -41,7 +41,7 @@ LINKEDIN_API_BASE = "https://api.linkedin.com/v2"
 
 async def get_oauth_url(user_id: uuid.UUID, redirect_uri: str) -> str:
     """Generate LinkedIn OAuth consent URL (Authlib). ``redirect_uri`` arg kept for API compat."""
-    url, _ = await create_authorization_url(user_id)
+    url, _, _ = await create_authorization_url(user_id)
     return url
 
 
