@@ -138,10 +138,12 @@ jobs:
       - name: Pull latest and restart on VM
         env:
           REGISTRY_HOST: ${{ secrets.GCP_REGION }}-docker.pkg.dev
+          CLOUDSDK_CORE_DISABLE_PROMPTS: "1"
         run: |
           gcloud compute ssh ${{ secrets.GCP_VM_NAME }} \
             --zone ${{ secrets.GCP_VM_ZONE }} \
             --tunnel-through-iap \
+            --quiet \
             --command "set -e
               cd /opt/content-engine
               sudo git fetch --depth=1 origin main
