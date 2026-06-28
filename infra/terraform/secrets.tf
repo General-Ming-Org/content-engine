@@ -24,21 +24,21 @@ locals {
   ])
 
   secrets = {
-    "anthropic-api-key"      = var.anthropic_api_key
-    "voyage-api-key"         = var.voyage_api_key
-    "openai-api-key"         = var.openai_api_key
-    "cohere-api-key"         = var.cohere_api_key
-    "tavily-api-key"         = var.tavily_api_key
-    "serper-api-key"         = var.serper_api_key
-    "substack-email"         = var.substack_email
-    "substack-password"      = var.substack_password
-    "smtp-username"          = var.smtp_username
-    "smtp-password"          = var.smtp_password
-    "qdrant-api-key"         = var.qdrant_api_key
-    "mcp-knowledge-token"    = var.mcp_knowledge_token
-    "dashboard-password"     = var.dashboard_password
-    "app-secret-key"         = var.app_secret_key
-    "postgres-password"      = var.postgres_password
+    "anthropic-api-key"   = var.anthropic_api_key
+    "voyage-api-key"      = var.voyage_api_key
+    "openai-api-key"      = var.openai_api_key
+    "cohere-api-key"      = var.cohere_api_key
+    "tavily-api-key"      = var.tavily_api_key
+    "serper-api-key"      = var.serper_api_key
+    "substack-email"      = var.substack_email
+    "substack-password"   = var.substack_password
+    "smtp-username"       = var.smtp_username
+    "smtp-password"       = var.smtp_password
+    "qdrant-api-key"      = var.qdrant_api_key
+    "mcp-knowledge-token" = var.mcp_knowledge_token
+    "dashboard-password"  = var.dashboard_password
+    "app-secret-key"      = var.app_secret_key
+    "postgres-password"   = var.postgres_password
   }
 
   # Secret Manager rejects empty payloads — only seed non-empty tfvars values.
