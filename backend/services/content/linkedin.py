@@ -106,3 +106,58 @@ async def generate_post(
         logger.warning("post_quality_violations", violations=violations, title=title)
 
     return {"content": content, "hashtags": hashtags, "violations": violations}
+
+
+async def generate_post_from_stance(
+    user_id: UUID,
+    stance: dict[str, Any],
+) -> dict[str, Any]:
+    """Draft a LinkedIn post that argues an extracted stance. Opinion-first path."""
+    from services.content.prompts import STANCE_LINKEDIN_DRAFT_USER_PROMPT
+
+    system = LINKEDIN_POST_SYSTEM_PROMPT.format(banned_phrases=_BANNED_PHRASE_LIST)
+    focus_area = stance.get("focus_area") or stance.get("topic") or "engineering"
+    attribution = stance.get("attribution", "")
+    attribution_line = (
+        f"- Practitioner voice to attribute/paraphrase: {attribution}"
+        if attribution
+        else "- No named attribution — argue as your own informed view."
+    )
+
+    voice_examples = await _retrieve_voice_examples(
+        user_id, stance.get("thesis", ""), focus_area_to_domain_label(focus_area)
+    )
+    user = STANCE_LINKEDIN_DRAFT_USER_PROMPT.format(
+        thesis=stance.get("thesis", ""),
+        anti_position=stance.get("anti_position", ""),
+        evidence=stance.get("evidence", ""),
+        focus_area=focus_area,
+        source_url=stance.get("source_url", ""),
+        attribution_line=attribution_line,
+    )
+    if voice_examples:
+        user = voice_examples + "\n\n---\n\n" + user
+
+    content = (await generate(
+        task="linkedin_post",
+        system=system,
+        user=user,
+        max_tokens=800,
+        temperature=0.7,
+    )).strip()
+
+    lines = content.split("\n")
+    hashtag_line = next((l for l in reversed(lines) if l.strip().startswith("#")), "")
+    hashtags = [tag.strip() for tag in hashtag_line.split() if tag.startswith("#")]
+    violations = _validate_post(content)
+    if violations:
+        logger.warning("post_quality_violations", violations=violations, thesis=stance.get("thesis", "")[:80])
+
+    return {"content": content, "hashtags": hashtags, "violations": violations}
+
+
+def focus_area_to_domain_label(focus_area: str) -> str:
+    """Map focus area to legacy domain enum for voice-example retrieval."""
+    from services.research.queries import focus_area_to_domain
+
+    return focus_area_to_domain(focus_area)

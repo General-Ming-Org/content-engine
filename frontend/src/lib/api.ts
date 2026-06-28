@@ -216,9 +216,7 @@ export const setLinkedinRedirectMode = (mode: LinkedInRedirectMode) =>
 
 export const linkedinStatus = () => request<LinkedInStatus>("/credentials/linkedin/status");
 export const startLinkedinOAuth = () =>
-  request<{ url: string; redirect_uri: string; client_id: string; scopes: string }>(
-    "/publish/linkedin/oauth-url",
-  );
+  request<{ url: string; redirect_uri: string; scopes: string }>("/publish/linkedin/oauth-url");
 export const deleteLinkedin = () => request<void>("/credentials/linkedin", { method: "DELETE" });
 
 export const substackStatus = () => request<any>("/credentials/substack/status");

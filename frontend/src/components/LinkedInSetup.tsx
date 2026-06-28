@@ -101,10 +101,6 @@ export function LinkedInSetup() {
     mutationFn: () => startLinkedinOAuth(),
     cooldownSeconds: 3,
     onSuccess: (data) => {
-      setBanner({
-        type: "ok",
-        text: `Opening LinkedIn for app ${data.client_id}. After login you should return to Settings — not the LinkedIn feed.`,
-      });
       window.location.href = data.url;
     },
     onError: (err) => {
@@ -221,10 +217,6 @@ export function LinkedInSetup() {
         onSelectRedirectMode={(mode) => redirectModeMut.mutate(mode)}
         redirectModeBusy={redirectModeMut.isPending}
       />
-
-      {app?.configured && !accountConnected && (
-        <LinkedInTroubleshooting clientId={displayClientId || app.client_id} redirectUri={app.redirect_uri} />
-      )}
 
       <div className="mt-5 space-y-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -374,59 +366,6 @@ export function LinkedInSetup() {
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function LinkedInTroubleshooting({
-  clientId,
-  redirectUri,
-}: {
-  clientId: string | null | undefined;
-  redirectUri: string | undefined;
-}) {
-  return (
-    <div className="mt-4 rounded-lg border border-amber-800/50 bg-amber-950/20 p-4 text-xs text-amber-200/90 space-y-2">
-      <p className="font-medium text-amber-300">If LinkedIn login sends you to your feed (not back here)</p>
-      <ol className="list-decimal list-inside space-y-1.5 text-amber-200/80 marker:text-amber-500">
-        <li>
-          In the{" "}
-          <a
-            href="https://www.linkedin.com/developers/apps"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-400 hover:underline"
-          >
-            Developer Portal
-          </a>
-          , open the app whose Client ID is{" "}
-          <code className="text-amber-100 font-mono">{clientId || "(save Step 2 first)"}</code>
-        </li>
-        <li>
-          <strong className="text-amber-100">Auth → Redirect URLs</strong> must include exactly:{" "}
-          <code className="break-all font-mono text-[10px]">{redirectUri}</code>
-        </li>
-        <li>
-          <strong className="text-amber-100">Products</strong> — both must be added (ideally Approved):{" "}
-          Sign In with LinkedIn using OpenID Connect, and Share on LinkedIn
-        </li>
-        <li>
-          <strong className="text-amber-100">Settings → App users</strong> — your LinkedIn account must be
-          Admin or Developer (required while the app is in Development mode)
-        </li>
-        <li>
-          Revoke old access at{" "}
-          <a
-            href="https://www.linkedin.com/psettings/permitted-services"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-400 hover:underline"
-          >
-            Permitted services
-          </a>
-          , then try Connect again
-        </li>
-      </ol>
     </div>
   );
 }
