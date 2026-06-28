@@ -52,11 +52,42 @@ async def test_create_authorization_url_uses_authlib():
             "services.publishing.linkedin_oauth.resolve_linkedin_redirect_uri",
             AsyncMock(return_value="http://localhost:3000/api/publish/linkedin/callback"),
         ),
+        patch(
+            "services.publishing.linkedin_oauth.require_linkedin_app_credentials",
+            AsyncMock(return_value=("test-client-id", "test-secret")),
+        ),
     ):
         from services.publishing.linkedin_oauth import create_authorization_url
 
-        url, redirect = await create_authorization_url(uid)
+        url, redirect, client_id = await create_authorization_url(uid)
         assert "linkedin.com" in url
         assert redirect.endswith("/api/publish/linkedin/callback")
+        assert client_id == "test-client-id"
         mock_client.create_authorization_url.assert_called_once()
         mock_client.aclose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_create_authorization_url_includes_redirect_uri():
+    """Authlib must send redirect_uri — mismatch causes login-then-feed on LinkedIn."""
+    uid = uuid.uuid4()
+    with (
+        patch(
+            "services.publishing.linkedin_oauth.resolve_linkedin_app_credentials",
+            AsyncMock(return_value=("test-client-id", "test-secret")),
+        ),
+        patch(
+            "services.publishing.linkedin_oauth.resolve_linkedin_redirect_uri",
+            AsyncMock(return_value="https://contentengine.example.com/api/publish/linkedin/callback"),
+        ),
+    ):
+        from services.publishing.linkedin_oauth import create_authorization_url
+        from urllib.parse import parse_qs, urlparse
+
+        url, redirect_uri, client_id = await create_authorization_url(uid)
+        qs = parse_qs(urlparse(url).query)
+        assert qs["response_type"] == ["code"]
+        assert qs["client_id"] == ["test-client-id"]
+        assert qs["redirect_uri"] == [redirect_uri]
+        assert "openid" in qs["scope"][0]
+        assert client_id == "test-client-id"
