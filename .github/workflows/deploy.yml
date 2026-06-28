@@ -149,7 +149,9 @@ jobs:
               sudo git fetch --depth=1 origin main
               sudo git reset --hard origin/main
               sudo bash scripts/vm_registry_login.sh ${REGISTRY_HOST}
-              sudo docker system prune -af --filter until=24h || true
+              sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml down || true
+              sudo docker system prune -af || true
+              sudo docker builder prune -af || true
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml config -q
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
