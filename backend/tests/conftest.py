@@ -1,6 +1,7 @@
 """Shared pytest fixtures for all tests. All external APIs are mocked — no real calls."""
 import uuid
 from collections.abc import AsyncGenerator
+from contextlib import ExitStack
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,16 +15,28 @@ from database import Base, get_db
 from main import app
 from models.user import User
 
-# In-memory SQLite for tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
-_test_engine = create_async_engine(
-    TEST_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-_TestSessionLocal = async_sessionmaker(
-    _test_engine, class_=AsyncSession, expire_on_commit=False
+# Services bind AsyncSessionLocal at import time — patch every use-site, not just database.
+ASYNC_SESSION_LOCAL_PATCH_TARGETS = (
+    "database.AsyncSessionLocal",
+    "services.publishing.queue_manager.AsyncSessionLocal",
+    "services.publishing.failures.AsyncSessionLocal",
+    "services.publishing.linkedin_api.AsyncSessionLocal",
+    "services.publishing.substack_auto.AsyncSessionLocal",
+    "services.content.calendar.AsyncSessionLocal",
+    "services.notifications.notifier.AsyncSessionLocal",
+    "services.analytics.collectors.AsyncSessionLocal",
+    "services.analytics.report_generator.AsyncSessionLocal",
+    "services.research.scorer.AsyncSessionLocal",
+    "services.research.dedupe.AsyncSessionLocal",
+    "services.engagement.replier.AsyncSessionLocal",
+    "services.credentials.store.AsyncSessionLocal",
+    "services.credentials.router.AsyncSessionLocal",
+    "services.publishing.linkedin_oauth.AsyncSessionLocal",
+    "services.notifications.email_digest.AsyncSessionLocal",
+    "services.ai.reembed.AsyncSessionLocal",
+    "services.ai.ingestion.AsyncSessionLocal",
 )
 
 
@@ -43,21 +56,33 @@ class _SessionContext:
 
 @pytest_asyncio.fixture
 async def setup_db():
-    async with _test_engine.begin() as conn:
+    engine = create_async_engine(
+        TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    session_factory = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield
-    async with _test_engine.begin() as conn:
+    yield engine, session_factory
+    async with engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
             await conn.execute(delete(table))
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture
 async def db_session(setup_db) -> AsyncGenerator[AsyncSession, None]:
-    async with _TestSessionLocal() as session:
+    _engine, test_session_local = setup_db
+    async with test_session_local() as session:
         def _session_factory() -> _SessionContext:
             return _SessionContext(session)
 
-        with patch("database.AsyncSessionLocal", side_effect=_session_factory):
+        with ExitStack() as stack:
+            for target in ASYNC_SESSION_LOCAL_PATCH_TARGETS:
+                stack.enter_context(patch(target, side_effect=_session_factory))
             yield session
 
 
