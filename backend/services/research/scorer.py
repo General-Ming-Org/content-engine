@@ -169,3 +169,51 @@ async def score_and_store(enriched: dict[str, Any]) -> ResearchTopic | None:
         logger.error("topic_embedding_failed", topic_id=str(topic.id), error=str(exc))
 
     return topic
+
+
+async def store_stance(stance: dict[str, Any]) -> ResearchTopic | None:
+    """Persist a gated stance as a research topic. Scored by debatability, not key_facts."""
+    from services.research.queries import focus_area_to_domain
+
+    thesis = stance["thesis"]
+    focus_area = stance.get("focus_area") or stance.get("topic") or ""
+    domain = focus_area_to_domain(focus_area)
+    score = round(float(stance.get("debatability_score", 0)) / 10.0, 3)
+
+    if await is_duplicate_in_db(thesis, url=stance.get("source_url")):
+        logger.info("stance_skipped", reason="duplicate_db", thesis=thesis[:80])
+        return None
+
+    if await _is_duplicate_semantic(thesis, thesis):
+        logger.info("stance_skipped", reason="duplicate_semantic", thesis=thesis[:80])
+        return None
+
+    sources = [{
+        "url": stance.get("source_url", ""),
+        "title": stance.get("topic", thesis[:80]),
+        "stance": stance,
+        "extracted_at": datetime.now(timezone.utc).isoformat(),
+    }]
+
+    async with AsyncSessionLocal() as db:
+        topic = ResearchTopic(
+            id=uuid.uuid4(),
+            title=thesis[:200],
+            summary=thesis,
+            sources=sources,
+            domain=domain,
+            relevance_score=score,
+            status="new",
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(topic)
+        await db.commit()
+        await db.refresh(topic)
+        logger.info("stance_stored", thesis=thesis[:80], score=score, domain=domain)
+
+    try:
+        await _embed_and_record(topic, {"stance": stance, "source": "opinion_mining"})
+    except Exception as exc:
+        logger.error("stance_embedding_failed", topic_id=str(topic.id), error=str(exc))
+
+    return topic

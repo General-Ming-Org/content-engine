@@ -24,7 +24,7 @@ from models.research import ResearchTopic
 from models.settings import UserSetting
 from models.user import User
 from services.ai.claude_client import generate as claude_generate
-from services.content.linkedin import generate_post
+from services.content.linkedin import generate_post, generate_post_from_stance
 from services.content.prompts import PAIRING_DECISION_PROMPT
 from services.content.substack import generate_article
 
@@ -36,6 +36,15 @@ DEFAULT_SCHEDULE = {
     "substack": {"day": "saturday", "time": "14:00"},
 }
 DEFAULT_MAX_POSTS_PER_USER_PER_RUN = 3
+
+
+def _stance_from_topic(topic: ResearchTopic) -> dict[str, Any] | None:
+    """Read extracted stance from topic sources. None → legacy synthesis path."""
+    if not topic.sources or not isinstance(topic.sources, list):
+        return None
+    first = topic.sources[0] if isinstance(topic.sources[0], dict) else {}
+    stance = first.get("stance")
+    return stance if isinstance(stance, dict) and stance.get("thesis") else None
 
 
 async def _decide_pairing(topic: ResearchTopic, synthesis: dict[str, Any]) -> str:
@@ -92,12 +101,15 @@ async def generate_for_topic(
         if task_id:
             gen_progress.progress_start(task_id, topic_id=research_topic_id, topic_title=topic.title)
 
+        stance = _stance_from_topic(topic)
+
+        # LEGACY_SUBSTANCE_PATH: synthesis/key_facts branch below — see LEGACY_SUBSTANCE_PATHS.md
         synthesis = {}
-        if topic.sources:
+        if not stance and topic.sources:
             first_source = topic.sources[0] if isinstance(topic.sources, list) else {}
             synthesis = first_source.get("synthesis", {})
 
-        voice_style = synthesis.get("suggested_voice", "analytical")
+        voice_style = synthesis.get("suggested_voice", "opinionated" if stance else "analytical")
         key_facts = synthesis.get("key_facts", [topic.summary or ""])
         why_it_matters = synthesis.get("why_it_matters", "")
         trade_offs = synthesis.get("trade_offs", "")
@@ -109,7 +121,8 @@ async def generate_for_topic(
                 percent=15,
                 message="Choosing LinkedIn, Substack, or both…",
             )
-        decision = await _decide_pairing(topic, synthesis)
+        # Stance topics are LinkedIn-first — arguing a take, not teaching a tutorial.
+        decision = "linkedin_only" if stance else await _decide_pairing(topic, synthesis)
         created: dict[str, Any] = {
             "decision": decision,
             "topic_id": research_topic_id,
@@ -126,14 +139,18 @@ async def generate_for_topic(
                     percent=40,
                     message="Writing LinkedIn post…",
                 )
-            post_data = await generate_post(
-                user_id=user_id,
-                title=topic.title,
-                domain=topic.domain,
-                voice_style=voice_style,
-                key_facts=key_facts,
-                why_it_matters=why_it_matters,
-                trade_offs=trade_offs,
+            post_data = (
+                await generate_post_from_stance(user_id=user_id, stance=stance)
+                if stance
+                else await generate_post(
+                    user_id=user_id,
+                    title=topic.title,
+                    domain=topic.domain,
+                    voice_style=voice_style,
+                    key_facts=key_facts,
+                    why_it_matters=why_it_matters,
+                    trade_offs=trade_offs,
+                )
             )
             post = Post(
                 id=uuid.uuid4(),
@@ -213,26 +230,37 @@ async def generate_for_topic(
 
 
 async def _generate_for_user(user_id: UUID) -> dict[str, Any]:
-    """Pick top topics matching this user's domain prefs and generate up to N items."""
-    user_domains = await _load_user_pref(user_id, "domains", DEFAULT_DOMAINS)
+    """Pick top stance topics by debatability score. Skip day if none qualify."""
     max_per_run = await _load_user_pref(user_id, "max_posts_per_run", DEFAULT_MAX_POSTS_PER_USER_PER_RUN)
 
-    topics: list[ResearchTopic] = []
     async with AsyncSessionLocal() as db:
-        for domain in user_domains:
-            row = (
-                await db.execute(
-                    select(ResearchTopic)
-                    .where(ResearchTopic.status.in_(["new", "used"]), ResearchTopic.domain == domain)
-                    .order_by(ResearchTopic.relevance_score.desc())
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-            if row:
-                topics.append(row)
+        candidates = (
+            await db.execute(
+                select(ResearchTopic)
+                .where(ResearchTopic.status.in_(["new", "used"]))
+                .order_by(ResearchTopic.relevance_score.desc())
+                .limit(max_per_run * 3)
+            )
+        ).scalars().all()
+
+    topics = [t for t in candidates if _stance_from_topic(t)][:max_per_run]
+
+    if not topics:
+        logger.info(
+            "content_generation_skipped",
+            user_id=str(user_id),
+            reason="no_debatable_stances",
+        )
+        return {
+            "user_id": str(user_id),
+            "generated": [],
+            "count": 0,
+            "skipped": True,
+            "reason": "no_debatable_stances",
+        }
 
     generated = []
-    for topic in topics[: max_per_run]:
+    for topic in topics:
         result = await generate_for_topic(str(topic.id), user_id)
         generated.append(result)
     return {"user_id": str(user_id), "generated": generated, "count": len(generated)}

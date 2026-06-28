@@ -1,5 +1,9 @@
 """Multi-source extraction + Claude synthesis for research enrichment.
 
+LEGACY_SUBSTANCE_PATH: This module treats fetched URLs + snippets as substance to
+neutralize via RESEARCH_SYNTHESIS_PROMPT. The daily opinion sweep uses
+stance_extractor.py instead. See LEGACY_SUBSTANCE_PATHS.md before removing.
+
 Two cache layers before we burn tokens:
   1. Vector DB check — if a recent topic is >85% semantically similar to this one,
      reuse its synthesis instead of re-fetching sources and re-synthesizing.

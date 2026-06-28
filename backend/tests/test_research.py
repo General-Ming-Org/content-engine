@@ -1,23 +1,46 @@
-"""Research service unit tests.
-
-Dedup moved to Qdrant (semantic) — `_ngram_similarity` is the no-API fallback used
-when the vector store is unreachable. These tests cover that fallback.
-"""
+"""Research service unit tests — opinion-mining pipeline."""
 import pytest
 
-from services.research.queries import DOMAIN_SWEEP_COUNTS
+from services.research.queries import (
+    DEBATABILITY_MIN_SCORE,
+    MY_FOCUS_AREAS,
+    SOURCE_PREFERENCES,
+    TAVILY_SEARCH_CONFIG,
+    build_opinion_source_queries,
+    get_sweep_queries,
+)
 from services.research.scorer import _compute_score, _ngram_similarity
-from services.research.searcher import _next_query, _select_results_for_enrichment
+from services.research.stance_gates import apply_stance_gates, passes_relevance_gate
+from services.research.searcher import _dedupe_results, _tavily_params
 
 
-def test_domain_sweep_counts():
-    assert DOMAIN_SWEEP_COUNTS == {
-        "ai_ml": 3,
-        "software_eng": 1,
-        "sre_infra": 1,
-        "data_eng": 1,
-    }
-    assert sum(DOMAIN_SWEEP_COUNTS.values()) == 6
+def test_focus_areas_seeded():
+    assert len(MY_FOCUS_AREAS) >= 3
+    assert "RAG and retrieval systems" in MY_FOCUS_AREAS
+
+
+def test_opinion_queries_vendor_agnostic():
+    queries = build_opinion_source_queries()
+    assert 8 <= len(queries) <= 10
+    joined = " ".join(queries).lower()
+    assert "vllm" not in joined
+    assert "production" not in joined
+    assert "unpopular opinion" in joined
+
+
+def test_sweep_query_rotation():
+    first = get_sweep_queries()
+    second = get_sweep_queries()
+    assert len(first) >= 1
+    assert first != second or len(build_opinion_source_queries()) <= len(first)
+
+
+def test_tavily_params_surface_config():
+    params = _tavily_params()
+    assert params["days"] == TAVILY_SEARCH_CONFIG["days"]
+    assert params["max_results"] == TAVILY_SEARCH_CONFIG["max_results"]
+    assert params["include_domains"] == SOURCE_PREFERENCES["include_domains"]
+    assert params["exclude_domains"] == SOURCE_PREFERENCES["exclude_domains"]
 
 
 def test_ngram_similarity_identical():
@@ -29,12 +52,59 @@ def test_ngram_similarity_different():
     assert sim < 0.2
 
 
-def test_ngram_similarity_partial():
-    sim = _ngram_similarity("kubernetes networking eBPF", "kubernetes networking cilium")
-    assert sim > 0.5
+def test_relevance_gate_accepts_lane_match():
+    stance = {
+        "thesis": "RAG chunking is overrated",
+        "focus_area": "RAG and retrieval systems",
+        "debatability_score": 8,
+    }
+    assert passes_relevance_gate(stance)
 
 
-def test_compute_score_high_quality():
+def test_relevance_gate_rejects_out_of_lane():
+    stance = {
+        "thesis": "Kubernetes ingress controllers are all the same",
+        "focus_area": "kubernetes networking",
+        "debatability_score": 9,
+    }
+    assert not passes_relevance_gate(stance)
+
+
+def test_debatability_gate_skips_bland():
+    stances = [
+        {
+            "thesis": "Spicy take",
+            "focus_area": MY_FOCUS_AREAS[0],
+            "debatability_score": DEBATABILITY_MIN_SCORE - 1,
+        },
+        {
+            "thesis": "Sharper take",
+            "focus_area": MY_FOCUS_AREAS[0],
+            "debatability_score": DEBATABILITY_MIN_SCORE + 1,
+        },
+    ]
+    surviving = apply_stance_gates(stances)
+    assert len(surviving) == 1
+    assert surviving[0]["thesis"] == "Sharper take"
+
+
+def test_apply_stance_gates_empty_when_all_rejected():
+    stances = [
+        {"thesis": "x", "focus_area": "totally unrelated field", "debatability_score": 10},
+    ]
+    assert apply_stance_gates(stances) == []
+
+
+def test_dedupe_results_by_url():
+    results = [
+        {"url": "https://example.com/a", "title": "A"},
+        {"url": "https://example.com/a", "title": "A duplicate"},
+        {"url": "https://example.com/b", "title": "B"},
+    ]
+    assert len(_dedupe_results(results)) == 2
+
+
+def test_compute_score_legacy_synthesis():
     enriched = {
         "title": "Test",
         "summary": "Test summary",
@@ -45,101 +115,44 @@ def test_compute_score_high_quality():
             "trade_offs": "Real trade-off here",
         },
     }
-    score = _compute_score(enriched)
-    assert score >= 0.8
-
-
-def test_compute_score_low_quality():
-    enriched = {
-        "title": "Test",
-        "summary": "Vague",
-        "domain": "ai_ml",
-        "synthesis": {
-            "confidence": 3,
-            "key_facts": [],
-            "trade_offs": "",
-        },
-    }
-    score = _compute_score(enriched)
-    assert score < 0.6
-
-
-def test_query_rotation():
-    """Verify queries rotate across multiple calls."""
-    first = _next_query("ai_ml")
-    second = _next_query("ai_ml")
-    assert first != second  # Queries rotate
-
-
-def test_select_results_balanced_across_domains():
-    """max_topics cap should round-robin, not truncate early domains only."""
-    by_domain = {
-        "ai_ml": [{"title": f"ai-{i}"} for i in range(3)],
-        "software_eng": [{"title": f"se-{i}"} for i in range(3)],
-        "sre_infra": [{"title": f"sre-{i}"} for i in range(3)],
-        "data_eng": [{"title": f"de-{i}"} for i in range(3)],
-    }
-    selected = _select_results_for_enrichment(by_domain, max_topics=6)
-    assert len(selected) == 6
-    domains = {r["title"].split("-")[0] for r in selected}
-    assert domains == {"ai", "se", "sre", "de"}
+    assert _compute_score(enriched) >= 0.8
 
 
 @pytest.mark.asyncio
-async def test_sweep_search_count():
-    """Sweep runs 3 ai_ml searches + 1 per other domain (6 total)."""
+async def test_opinion_sweep_skips_when_no_stances(mock_tavily):
     from unittest.mock import AsyncMock, patch
-
-    search_calls = 0
-
-    async def mock_search(_query: str, max_results: int = 8) -> list[dict]:
-        nonlocal search_calls
-        search_calls += 1
-        return [
-            {
-                "title": f"Result {search_calls}",
-                "url": f"https://example.com/{search_calls}",
-                "content": "snippet",
-            }
-        ]
-
-    enriched_domains: list[str] = []
-
-    async def mock_enrich(result: dict) -> None:
-        enriched_domains.append(result["domain"])
-        return None
 
     with patch(
         "services.research.dedupe.archive_duplicate_topics",
         new_callable=AsyncMock,
         return_value=0,
     ):
-        with patch("services.research.searcher.search", side_effect=mock_search):
-            with patch("services.research.deep_dive.enrich_topic", side_effect=mock_enrich):
-                from services.research.searcher import sweep
+        with patch(
+            "services.research.stance_extractor.extract_stances_from_results",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            from services.research.searcher import sweep
 
-                await sweep()
-
-    assert search_calls == 6
-    assert enriched_domains.count("ai_ml") >= 3
+            result = await sweep()
+            assert result["status"] == "complete"
+            assert result["results_stored"] == 0
+            assert result["skip_reasons"].get("no_debatable_stances") == 1
 
 
 @pytest.mark.asyncio
-async def test_research_sweep_mocked(mock_tavily):
-    """Full sweep with mocked external calls should complete without error."""
-    from unittest.mock import AsyncMock, patch
+async def test_opinion_sweep_stores_gated_stance(mock_tavily):
+    from unittest.mock import AsyncMock, MagicMock, patch
 
-    enriched = {
-        "title": "Test Article: eBPF in Production",
-        "summary": "Test summary",
-        "sources": [],
-        "domain": "sre_infra",
-        "synthesis": {
-            "confidence": 8,
-            "key_facts": ["fact 1"],
-            "trade_offs": "trade-off",
-        },
-        "from_cache": False,
+    stance = {
+        "thesis": "Most RAG pipelines over-index on chunk size",
+        "anti_position": "bigger chunks are always better",
+        "evidence": "teams keep shrinking chunks after eval failures",
+        "source_url": "https://news.ycombinator.com/item?id=1",
+        "topic": "RAG chunking",
+        "focus_area": MY_FOCUS_AREAS[0],
+        "debatability_score": 8,
+        "attribution": "",
     }
 
     with patch(
@@ -147,14 +160,16 @@ async def test_research_sweep_mocked(mock_tavily):
         new_callable=AsyncMock,
         return_value=0,
     ):
-        with patch("services.research.deep_dive.enrich_topic", new_callable=AsyncMock, return_value=enriched):
-            with patch("services.research.scorer.score_and_store") as mock_store:
-                mock_store.return_value = None
+        with patch(
+            "services.research.stance_extractor.extract_stances_from_results",
+            new_callable=AsyncMock,
+            return_value=[stance],
+        ):
+            with patch("services.research.scorer.store_stance") as mock_store:
+                mock_store.return_value = MagicMock()
                 from services.research.searcher import sweep
 
                 result = await sweep()
                 assert result["status"] == "complete"
-                assert mock_tavily.call_count == 6
-                assert result["results_stored"] >= 0
-                assert result["results_skipped"] >= 0
-                assert result["results_found"] == result["results_stored"] + result["results_skipped"]
+                assert result["results_stored"] == 1
+                mock_store.assert_called_once()

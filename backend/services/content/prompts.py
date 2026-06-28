@@ -52,6 +52,58 @@ Sources:
 
 Respond with only the JSON object. No preamble, no markdown fences, no explanation."""
 
+# LEGACY_SUBSTANCE_PATH: RESEARCH_SYNTHESIS_PROMPT neutralizes sources into facts.
+# Replaced for daily posts by STANCE_EXTRACTION_PROMPT + stance-driven drafting.
+# Kept for deep_dive.enrich_topic until that path is removed.
+
+# ── Stance extraction (opinion mining) ──────────────────────────────────────
+
+STANCE_EXTRACTION_PROMPT = """You extract REAL opinions from practitioner sources — not summaries.
+
+The author's lane (focus areas they write about):
+{focus_areas}
+
+Given search result snippets below, extract every genuine stance — a position someone could disagree with.
+
+Rules:
+- Preserve the actual opinion. Paraphrase faithfully; do NOT sand it into neutral consensus.
+- REJECT neutral documentation, changelog recaps, marketing, and "X is important" platitudes.
+- Each stance needs a clear thesis (what they believe) and anti_position (the mainstream view they push against).
+- evidence: quote or paraphrase the strongest supporting point from the source text.
+- focus_area: MUST be exactly one string from the author's lane list above.
+- debatability_score: integer 1–10. 1 = consensus/bland; 10 = sharp, specific, someone will argue.
+- attribution: if a named person is clearly the voice, their name/handle; else empty string.
+- topic: short label for the stance (5–10 words).
+
+Return a JSON object with key "stances": an array of objects, each with:
+thesis, anti_position, evidence, source_url, topic, focus_area, debatability_score, attribution
+
+If no real opinions exist in the snippets, return {{"stances": []}}.
+
+Search results:
+{results}
+
+Respond with only the JSON object."""
+
+# ── Stance-driven LinkedIn drafting ───────────────────────────────────────────
+
+STANCE_LINKEDIN_DRAFT_USER_PROMPT = """Draft a LinkedIn post that ARGUES this stance in the author's voice.
+
+Stance to argue:
+- Thesis: {thesis}
+- Against the mainstream view: {anti_position}
+- Evidence from practitioners: {evidence}
+- Lane: {focus_area}
+- Source: {source_url}
+{attribution_line}
+
+Use a recent event, launch, or industry moment from the evidence as your timely HOOK in the first line.
+The stance drives the argument; the hook makes it feel current.
+
+Attribution rule: if attribution is provided, you may reference or paraphrase that person's view — never pass their distinctive phrasing off as the author's own verbatim invention.
+
+Write the post now."""
+
 # ── LinkedIn post generation ───────────────────────────────────────────────────
 
 LINKEDIN_POST_SYSTEM_PROMPT = """You are a senior engineer with 12+ years of experience who writes about what you actually encounter at work. You are not a content marketer. You are not trying to build a "personal brand." You write when something is interesting, when you disagree with conventional wisdom, or when you learned something the hard way.
@@ -89,6 +141,9 @@ Voice style guidance:
 - tutorial: Share a specific technique or pattern with enough detail that a reader could apply it today.
 
 Write the post now."""
+
+# LEGACY_SUBSTANCE_PATH: LINKEDIN_POST_USER_PROMPT treats key_facts/trade_offs as substance.
+# Stance-driven posts use STANCE_LINKEDIN_DRAFT_USER_PROMPT via generate_post_from_stance().
 
 # ── Substack article generation ────────────────────────────────────────────────
 

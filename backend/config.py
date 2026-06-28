@@ -67,7 +67,8 @@ class Settings(BaseSettings):
     tavily_api_key: str = ""
     serper_api_key: str = ""
 
-    # Research sweep volume — 4 domains × per_domain, capped by max_topics (LLM cost control)
+    # Legacy sweep volume knobs — superseded by TAVILY_SEARCH_CONFIG / SWEEP_* in
+    # services/research/queries.py for the opinion-mining pipeline.
     research_sweep_per_domain: int = 3
     research_sweep_max_topics: int = 10
 
