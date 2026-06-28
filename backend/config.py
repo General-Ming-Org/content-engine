@@ -91,6 +91,20 @@ class Settings(BaseSettings):
     smtp_from_address: str = ""
 
     @property
+    def effective_smtp_host(self) -> str:
+        """SMTP host for outbound mail.
+
+        Resend uses username ``resend`` + API key; when operators set that username
+        but leave the default Gmail host, route to Resend automatically.
+        """
+        host = self.smtp_host.strip()
+        if host and host != "smtp.gmail.com":
+            return host
+        if self.smtp_username.strip().lower() == "resend":
+            return "smtp.resend.com"
+        return host or "smtp.gmail.com"
+
+    @property
     def is_production(self) -> bool:
         return self.app_env == "production"
 

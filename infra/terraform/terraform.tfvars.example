@@ -41,6 +41,9 @@ linkedin_refresh_token = ""
 linkedin_person_urn    = ""
 substack_email         = ""
 substack_password      = ""
+# Resend: host=smtp.resend.com, port=587, username=resend, password=<API key>,
+# from=<verified domain address>. Gmail uses smtp.gmail.com + App Password.
+smtp_host              = "smtp.gmail.com"
 smtp_username          = ""
 smtp_password          = ""
 smtp_from_address      = ""

@@ -46,7 +46,7 @@ async def issue_verification_token(db: AsyncSession, user: User) -> str:
 async def send_verification_email(user: User, raw_token: str, public_base_url: str) -> None:
     """Send the verification email. Silently skipped when SMTP is unconfigured
     (logged at WARNING so it's visible in dev without crashing signup)."""
-    if not all([settings.smtp_host, settings.smtp_username, settings.smtp_password]):
+    if not all([settings.effective_smtp_host, settings.smtp_username, settings.smtp_password]):
         logger.warning(
             "verification_email_skipped_smtp_not_configured",
             user_id=str(user.id),
@@ -85,7 +85,7 @@ async def send_verification_email(user: User, raw_token: str, public_base_url: s
     try:
         await aiosmtplib.send(
             msg,
-            hostname=settings.smtp_host,
+            hostname=settings.effective_smtp_host,
             port=settings.smtp_port,
             username=settings.smtp_username,
             password=settings.smtp_password,

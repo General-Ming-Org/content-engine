@@ -7,6 +7,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator, model_validato
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import get_settings
 from database import get_db
 from models.user import User
 from services.auth.deps import get_current_user
@@ -76,12 +77,15 @@ class VerifyEmailRequest(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def _public_origin(request: Request) -> str:
-    """Build email links without an env var.
+    """Build verification links for emails.
 
-    Browser signup/resend requests include Origin. If a reverse proxy is in
-    front, X-Forwarded-* headers are respected. Local dev falls back to the Vite
-    origin.
+    Prefer APP_PUBLIC_URL (set on the VM / in .env) so links stay correct behind
+    nginx. Fall back to request headers for local dev without env config.
     """
+    configured = get_settings().app_public_url.strip()
+    if configured:
+        return configured.rstrip("/")
+
     origin = request.headers.get("origin")
     if origin:
         return origin.rstrip("/")

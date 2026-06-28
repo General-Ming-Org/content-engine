@@ -33,7 +33,7 @@ async def send_email(
     email_subtitle: str | None = None,
 ) -> None:
     """Send a branded HTML + plain-text email via the operator's SMTP."""
-    if not all([settings.smtp_host, settings.smtp_username, settings.smtp_password]):
+    if not all([settings.effective_smtp_host, settings.smtp_username, settings.smtp_password]):
         logger.warning("smtp_not_configured_email_skipped", subject=subject)
         return
 
@@ -50,7 +50,7 @@ async def send_email(
     try:
         await aiosmtplib.send(
             msg,
-            hostname=settings.smtp_host,
+            hostname=settings.effective_smtp_host,
             port=settings.smtp_port,
             username=settings.smtp_username,
             password=settings.smtp_password,
