@@ -9,11 +9,10 @@ from models.content import Post
 
 
 @pytest.mark.asyncio
-async def test_queue_marks_failed_when_linkedin_not_authorized(db_session):
-    user_id = uuid.uuid4()
+async def test_queue_marks_failed_when_linkedin_not_authorized(db_session, test_user):
     post = Post(
         id=uuid.uuid4(),
-        user_id=user_id,
+        user_id=test_user.id,
         content="Test queued post",
         hashtags=[],
         voice_style="analytical",
