@@ -23,6 +23,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Verify GCP deploy secrets
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOYER_SA: ${{ secrets.GCP_DEPLOYER_SA }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+        run: |
+          missing=0
+          for name in WIF_PROVIDER DEPLOYER_SA GCP_PROJECT_ID GCP_REGION; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing GitHub secret for deploy — see infra/terraform/README.md (GitHub Actions secrets)."
+              echo "  Required: GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOYER_SA, GCP_PROJECT_ID, GCP_REGION"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Enable WIF: set enable_github_wif=true in terraform.tfvars, terraform apply, then copy outputs to GitHub secrets."
+            exit 1
+          fi
+
       - id: tag
         run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
@@ -65,6 +85,25 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify GCP deploy secrets
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          DEPLOYER_SA: ${{ secrets.GCP_DEPLOYER_SA }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: ${{ secrets.GCP_REGION }}
+          GCP_VM_NAME: ${{ secrets.GCP_VM_NAME }}
+          GCP_VM_ZONE: ${{ secrets.GCP_VM_ZONE }}
+          GCP_PUBLIC_HOST: ${{ secrets.GCP_PUBLIC_HOST }}
+        run: |
+          missing=0
+          for name in WIF_PROVIDER DEPLOYER_SA GCP_PROJECT_ID GCP_REGION GCP_VM_NAME GCP_VM_ZONE GCP_PUBLIC_HOST; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing GitHub secret: $name"
+              missing=1
+            fi
+          done
+          exit "$missing"
 
       - uses: google-github-actions/auth@v2
         with:
