@@ -133,36 +133,6 @@ variable "serper_api_key" {
   default   = ""
 }
 
-variable "linkedin_client_id" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "linkedin_client_secret" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "linkedin_access_token" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "linkedin_refresh_token" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "linkedin_person_urn" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
 variable "substack_email" {
   type      = string
   sensitive = true

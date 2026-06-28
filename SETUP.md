@@ -116,7 +116,7 @@ Then ask Claude things like *"what have I written about Kubernetes operators?"* 
 
 ## 6. LinkedIn Developer App (per user, in the web app)
 
-LinkedIn requires an approved Developer App to post via API. **Each user configures their own app in Settings → LinkedIn** — follow the numbered steps in the UI (create app, copy redirect URL, paste Client ID / Secret, then connect account). Credentials are encrypted in the database; you do not need `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` in `.env` unless you want a legacy server-wide fallback.
+LinkedIn requires an approved Developer App to post via API. **Each user configures their own app in Settings → LinkedIn** — follow the numbered steps in the UI (create app, copy redirect URL, paste Client ID / Secret, then connect account). Credentials are encrypted in the database.
 
 The sections below mirror the in-app guide for reference.
 

@@ -71,11 +71,7 @@ class Settings(BaseSettings):
     research_sweep_per_domain: int = 3
     research_sweep_max_topics: int = 10
 
-    # LinkedIn — optional legacy fallback. Users normally save Client ID / Secret
-    # in Settings (encrypted in user_credentials). Env vars apply when unset per user.
-    linkedin_client_id: str = ""
-    linkedin_client_secret: str = ""
-    # OAuth callback base override. If empty, uses APP_PUBLIC_URL (recommended for local dev:
+    # OAuth callback override. If empty, uses APP_PUBLIC_URL (recommended for local dev:
     # http://localhost:3000/api/publish/linkedin/callback via Vite proxy).
     linkedin_redirect_uri: str = ""
 

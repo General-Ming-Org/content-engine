@@ -111,12 +111,7 @@ async def health_check() -> dict:
         status["redis"] = {"status": "error", "detail": str(exc)}
         degrade()
 
-    # LinkedIn Developer App — per-user in DB; env is optional legacy fallback.
-    status["linkedin_app"] = {
-        "status": "env_fallback"
-        if settings.linkedin_client_id and settings.linkedin_client_secret
-        else "per_user_settings"
-    }
+    status["linkedin_app"] = {"status": "per_user_settings"}
 
     # SMTP outbound (operator-level)
     status["smtp"] = {

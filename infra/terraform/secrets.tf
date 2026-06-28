@@ -12,11 +12,6 @@ locals {
     "cohere-api-key",
     "tavily-api-key",
     "serper-api-key",
-    "linkedin-client-id",
-    "linkedin-client-secret",
-    "linkedin-access-token",
-    "linkedin-refresh-token",
-    "linkedin-person-urn",
     "substack-email",
     "substack-password",
     "smtp-username",
@@ -35,11 +30,6 @@ locals {
     "cohere-api-key"         = var.cohere_api_key
     "tavily-api-key"         = var.tavily_api_key
     "serper-api-key"         = var.serper_api_key
-    "linkedin-client-id"     = var.linkedin_client_id
-    "linkedin-client-secret" = var.linkedin_client_secret
-    "linkedin-access-token"  = var.linkedin_access_token
-    "linkedin-refresh-token" = var.linkedin_refresh_token
-    "linkedin-person-urn"    = var.linkedin_person_urn
     "substack-email"         = var.substack_email
     "substack-password"      = var.substack_password
     "smtp-username"          = var.smtp_username
@@ -59,11 +49,6 @@ locals {
     var.cohere_api_key != "" ? ["cohere-api-key"] : [],
     var.tavily_api_key != "" ? ["tavily-api-key"] : [],
     var.serper_api_key != "" ? ["serper-api-key"] : [],
-    var.linkedin_client_id != "" ? ["linkedin-client-id"] : [],
-    var.linkedin_client_secret != "" ? ["linkedin-client-secret"] : [],
-    var.linkedin_access_token != "" ? ["linkedin-access-token"] : [],
-    var.linkedin_refresh_token != "" ? ["linkedin-refresh-token"] : [],
-    var.linkedin_person_urn != "" ? ["linkedin-person-urn"] : [],
     var.substack_email != "" ? ["substack-email"] : [],
     var.substack_password != "" ? ["substack-password"] : [],
     var.smtp_username != "" ? ["smtp-username"] : [],

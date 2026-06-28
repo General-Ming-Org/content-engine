@@ -4,7 +4,7 @@ LinkedIn OAuth tokens:
     secret_payload     = encrypted {access_token, refresh_token}
     metadata_payload   = {person_urn, scope, expires_at, ...}
 
-LinkedIn Developer App (per user — replaces env LINKEDIN_CLIENT_*):
+LinkedIn Developer App (per user):
     secret_payload     = encrypted {client_secret}
     metadata_payload   = {client_id}
 
@@ -104,16 +104,10 @@ async def get_linkedin_app_credential(user_id: UUID) -> dict[str, str] | None:
 
 
 async def resolve_linkedin_app_credentials(user_id: UUID) -> tuple[str, str] | None:
-    """Per-user Developer App creds, with optional env fallback for legacy deploys."""
+    """Per-user Developer App creds from ``linkedin_app`` in user_credentials."""
     cred = await get_linkedin_app_credential(user_id)
     if cred:
         return cred["client_id"], cred["client_secret"]
-
-    from config import get_settings
-
-    s = get_settings()
-    if s.linkedin_client_id and s.linkedin_client_secret:
-        return s.linkedin_client_id, s.linkedin_client_secret
     return None
 
 
