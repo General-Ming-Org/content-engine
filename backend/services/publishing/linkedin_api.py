@@ -12,6 +12,7 @@ from sqlalchemy import select, update
 
 from database import AsyncSessionLocal
 from models.content import Post
+from models.research import ResearchTopic
 from models.settings import UserSetting
 from services.credentials.store import get_linkedin_credential, save_linkedin_credential
 from services.publishing.linkedin_oauth import (
@@ -180,13 +181,24 @@ async def _publish_post_impl(post_id: str) -> dict[str, Any]:
         await db.commit()
         logger.info("linkedin_post_published", post_id=post_id, linkedin_id=linkedin_post_id)
 
+        from models.research import ResearchTopic
         from services.ai.ingestion import index_published_post
+
+        domain = "software_eng"
+        if post.research_id:
+            topic = (
+                await db.execute(
+                    select(ResearchTopic).where(ResearchTopic.id == post.research_id)
+                )
+            ).scalar_one_or_none()
+            if topic:
+                domain = topic.domain
 
         await index_published_post(
             user_id=post.user_id,
             post_id=post.id,
             content=post.content,
-            domain="software_eng",
+            domain=domain,
             voice_style=post.voice_style,
             metadata={"linkedin_post_id": linkedin_post_id},
         )

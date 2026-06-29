@@ -27,6 +27,7 @@ from services.ai.claude_client import generate as claude_generate
 from services.content.linkedin import generate_post, generate_post_from_stance
 from services.content.prompts import PAIRING_DECISION_PROMPT
 from services.content.substack import generate_article
+from services.content.tone import load_tone_preferences, pick_voice_style
 
 logger = structlog.get_logger(__name__)
 
@@ -103,13 +104,20 @@ async def generate_for_topic(
 
         stance = _stance_from_topic(topic)
 
+        tone = await _load_user_pref(user_id, "tone_preferences", {})
+        if not isinstance(tone, dict) or not tone.get("emoji_max"):
+            tone = await load_tone_preferences(user_id)
+
         # LEGACY_SUBSTANCE_PATH: synthesis/key_facts branch below — see LEGACY_SUBSTANCE_PATHS.md
         synthesis = {}
         if not stance and topic.sources:
             first_source = topic.sources[0] if isinstance(topic.sources, list) else {}
             synthesis = first_source.get("synthesis", {})
 
-        voice_style = synthesis.get("suggested_voice", "opinionated" if stance else "analytical")
+        voice_style = synthesis.get(
+            "suggested_voice",
+            pick_voice_style(tone, "opinionated" if stance else "analytical"),
+        )
         key_facts = synthesis.get("key_facts", [topic.summary or ""])
         why_it_matters = synthesis.get("why_it_matters", "")
         trade_offs = synthesis.get("trade_offs", "")
@@ -229,9 +237,29 @@ async def generate_for_topic(
         return created
 
 
+async def _user_focus_areas(user_id: UUID) -> list[str] | None:
+    try:
+        from services.brain.personality import get_or_create_profile
+
+        profile = await get_or_create_profile(user_id)
+        if profile.focus_areas:
+            return list(profile.focus_areas)
+    except Exception:
+        pass
+    return None
+
+
+def _stance_matches_focus(stance: dict[str, Any], focus_areas: list[str] | None) -> bool:
+    if not focus_areas:
+        return True
+    fa = stance.get("focus_area") or stance.get("topic") or ""
+    return any(fa.lower() in area.lower() or area.lower() in fa.lower() for area in focus_areas)
+
+
 async def _generate_for_user(user_id: UUID) -> dict[str, Any]:
     """Pick top stance topics by debatability score. Skip day if none qualify."""
     max_per_run = await _load_user_pref(user_id, "max_posts_per_run", DEFAULT_MAX_POSTS_PER_USER_PER_RUN)
+    focus_areas = await _user_focus_areas(user_id)
 
     async with AsyncSessionLocal() as db:
         candidates = (
@@ -239,11 +267,25 @@ async def _generate_for_user(user_id: UUID) -> dict[str, Any]:
                 select(ResearchTopic)
                 .where(ResearchTopic.status.in_(["new", "used"]))
                 .order_by(ResearchTopic.relevance_score.desc())
-                .limit(max_per_run * 3)
+                .limit(max_per_run * 5)
             )
         ).scalars().all()
 
-    topics = [t for t in candidates if _stance_from_topic(t)][:max_per_run]
+    from services.brain.feedback import boost_score_for_user
+
+    scored_topics: list[tuple[float, ResearchTopic]] = []
+    for t in candidates:
+        stance = _stance_from_topic(t)
+        if not stance:
+            continue
+        if not _stance_matches_focus(stance, focus_areas):
+            continue
+        fa = stance.get("focus_area", "")
+        boosted = await boost_score_for_user(user_id, fa, t.relevance_score or 0.0)
+        scored_topics.append((boosted, t))
+
+    scored_topics.sort(key=lambda x: x[0], reverse=True)
+    topics = [t for _, t in scored_topics[:max_per_run]]
 
     if not topics:
         logger.info(

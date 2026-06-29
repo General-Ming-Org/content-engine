@@ -9,6 +9,8 @@ from services.auth.deps import get_current_user, require_admin
 router = APIRouter()
 
 TASK_MAP = {
+    "brain_harvest": "run_brain_harvest",
+    "brain_personality_refresh": "run_brain_personality_refresh",
     "research_sweep": "run_research_sweep",
     "content_generation": "run_content_generation",
     "queue_check": "check_publish_queue",

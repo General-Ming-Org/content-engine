@@ -22,10 +22,12 @@ from models.research import ResearchTopic
 from services.ai.embeddings import get_active_embedder
 from services.ai.vector_store import (
     KIND_ARTICLES,
+    KIND_INSPIRATION,
     KIND_POSTS,
     KIND_RESEARCH,
     get_vector_store,
 )
+from models.brain import InspirationPost
 
 logger = structlog.get_logger(__name__)
 
@@ -184,6 +186,66 @@ async def _reembed_articles() -> dict[str, int]:
     return {"embedded": embedded, "total": len(rows)}
 
 
+async def _reembed_inspiration() -> dict[str, int]:
+    embedder = get_active_embedder()
+    store = get_vector_store()
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(
+                InspirationPost.id,
+                InspirationPost.hook_text,
+                InspirationPost.focus_area,
+                InspirationPost.domain,
+                InspirationPost.traction_score,
+                InspirationPost.pattern_tags,
+            ).where(InspirationPost.status == "processed")
+        )
+        rows = result.all()
+
+    by_id = {r[0]: r for r in rows}
+    todo = await _find_unembedded_ids("inspiration", embedder.model_id, list(by_id.keys()))
+    if not todo:
+        return {"embedded": 0, "total": len(rows)}
+
+    embedded = 0
+    items = list(todo)
+    for i in range(0, len(items), BATCH_SIZE):
+        chunk = items[i : i + BATCH_SIZE]
+        batch_items = []
+        records = []
+        for doc_id in chunk:
+            _, hook, focus_area, domain, traction, tags = by_id[doc_id]
+            batch_items.append((
+                doc_id,
+                hook,
+                {
+                    "focus_area": focus_area,
+                    "domain": domain,
+                    "traction_score": traction,
+                    "hook_type": (tags or {}).get("hook_type", ""),
+                    "pattern_tags": tags or {},
+                },
+            ))
+            records.append((doc_id, hook))
+
+        await store.upsert_batch(KIND_INSPIRATION, batch_items)
+
+        async with AsyncSessionLocal() as db:
+            for doc_id, text in records:
+                db.add(EmbeddingRecord(
+                    id=uuid.uuid4(),
+                    doc_id=doc_id,
+                    kind="inspiration",
+                    embedding_model_id=embedder.model_id,
+                    source_text_hash=_hash(text),
+                ))
+            await db.commit()
+        embedded += len(chunk)
+
+    return {"embedded": embedded, "total": len(rows)}
+
+
 async def reembed_corpus() -> dict[str, Any]:
     """Re-embed everything that doesn't have a record for the active model.
     Returns per-kind counts. Idempotent."""
@@ -193,10 +255,12 @@ async def reembed_corpus() -> dict[str, Any]:
     research = await _reembed_research()
     posts = await _reembed_posts()
     articles = await _reembed_articles()
+    inspiration = await _reembed_inspiration()
 
     return {
         "active_model": embedder.model_id,
         "research": research,
         "posts": posts,
         "articles": articles,
+        "inspiration": inspiration,
     }

@@ -8,6 +8,9 @@ import {
   triggerTask,
   getSmtpTo,
   setSmtpTo,
+  getPersonality,
+  updatePersonalityBio,
+  refreshPersonality,
   type TaskResult,
 } from "../lib/api";
 import { LinkedInSetup } from "../components/LinkedInSetup";
@@ -31,6 +34,7 @@ export default function Settings() {
         <ScheduleSettings settings={settings} />
         <EmailSettings settings={settings} />
         <ToneSettings settings={settings} />
+        <PersonalitySettings />
         <SchedulerStatus tasks={schedulerData?.tasks ?? []} />
       </div>
     </div>
@@ -315,6 +319,80 @@ function ToneSettings({ settings }: { settings: Record<string, unknown> | undefi
   );
 }
 
+function PersonalitySettings() {
+  const qc = useQueryClient();
+  const { data: profile } = useQuery({ queryKey: ["personality"], queryFn: getPersonality });
+
+  const saveMut = useMutation({
+    mutationFn: (payload: { bio_context?: string; focus_areas?: string[] }) =>
+      updatePersonalityBio(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["personality"] }),
+  });
+
+  const refreshMut = useMutation({
+    mutationFn: refreshPersonality,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["personality"] }),
+  });
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <h2 className="text-sm font-semibold text-gray-200 mb-1">Personality & Focus</h2>
+      <p className="text-xs text-gray-500 mb-4">
+        Your lane and bio shape how the Research Brain drafts content. Profile refreshes weekly from your winners.
+      </p>
+        <form className="space-y-3">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1.5">Focus areas (one per line)</label>
+          <textarea
+            name="focus_areas"
+            className="input min-h-[80px] font-mono text-xs"
+            key={(profile?.focus_areas ?? []).join("|")}
+            defaultValue={(profile?.focus_areas ?? []).join("\n")}
+            placeholder={"RAG and retrieval systems\nLLM inference infra"}
+            onBlur={(e) => {
+              const bio = (e.currentTarget.form?.querySelector('[name="bio_context"]') as HTMLTextAreaElement)?.value ?? "";
+              saveMut.mutate({
+                bio_context: bio.trim() || undefined,
+                focus_areas: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean),
+              });
+            }}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1.5">Bio / personality context</label>
+          <textarea
+            name="bio_context"
+            className="input min-h-[60px] text-xs"
+            key={profile?.bio_context ?? "empty"}
+            defaultValue={profile?.bio_context ?? ""}
+            placeholder="Staff engineer building LLM products. Skeptical of hype, obsessed with production metrics."
+            onBlur={(e) => {
+              const focus = (e.currentTarget.form?.querySelector('[name="focus_areas"]') as HTMLTextAreaElement)?.value ?? "";
+              saveMut.mutate({
+                bio_context: e.target.value.trim() || undefined,
+                focus_areas: focus.split("\n").map((s) => s.trim()).filter(Boolean),
+              });
+            }}
+          />
+        </div>
+      </form>
+      {profile?.personality_summary && (
+        <div className="rounded-lg bg-gray-800/50 p-3 mt-3">
+          <p className="text-xs text-gray-500 mb-1">Personality preview (auto-generated)</p>
+          <p className="text-xs text-gray-300">{profile.personality_summary}</p>
+        </div>
+      )}
+      <button
+        onClick={() => refreshMut.mutate()}
+        disabled={refreshMut.isPending}
+        className="btn-ghost text-xs mt-3"
+      >
+        {refreshMut.isPending ? "Refreshing…" : "Refresh personality now"}
+      </button>
+    </div>
+  );
+}
+
 function SchedulerStatus({ tasks }: { tasks: { name: string; task: string; schedule: string }[] }) {
   const qc = useQueryClient();
   const trigMut = useGuardedMutation({
@@ -361,6 +439,8 @@ function formatTaskName(name: string) {
 
 function describeSchedule(name: string, schedule: string) {
   const known: Record<string, string> = {
+    "brain-signal-harvest": "Every day at 7:00 AM",
+    "brain-personality-refresh": "Every Sunday at 7:00 PM",
     "research-sweep-morning": "Every day at 8:00 AM",
     "research-sweep-evening": "Every day at 6:00 PM",
     "content-generation": "Every day at 9:00 PM",

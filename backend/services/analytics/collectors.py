@@ -50,7 +50,10 @@ async def _collect_linkedin_for(user_id: UUID) -> dict[str, Any]:
             logger.warning("linkedin_profile_views_failed", user_id=str(user_id), error=str(exc))
 
     async with AsyncSessionLocal() as db:
+        from models.research import ResearchTopic
         from services.publishing.linkedin_api import get_post_metrics
+        from services.ai.ingestion import index_published_post
+
         posts = (await db.execute(
             select(Post).where(
                 Post.user_id == user_id,
@@ -62,12 +65,57 @@ async def _collect_linkedin_for(user_id: UUID) -> dict[str, Any]:
         total_imp = total_eng = 0
         for post in posts:
             pm = await get_post_metrics(user_id, post.linkedin_post_id)
-            total_imp += pm.get("impressions", 0)
-            total_eng += pm.get("likes", 0) + pm.get("comments", 0) + pm.get("shares", 0)
+            likes = pm.get("likes", 0)
+            comments = pm.get("comments", 0)
+            shares = pm.get("shares", 0)
+            engagement_total = likes + comments + shares
+            impressions = pm.get("impressions", 0)
+            engagement_rate = (
+                round(engagement_total / impressions * 100, 2) if impressions else 0.0
+            )
+            post.metrics = {
+                "likes": likes,
+                "comments": comments,
+                "shares": shares,
+                "engagement_total": engagement_total,
+                "impressions": impressions,
+                "engagement_rate": engagement_rate,
+                "collected_at": datetime.now(timezone.utc).isoformat(),
+            }
+            total_imp += impressions
+            total_eng += engagement_total
+
+            domain = "software_eng"
+            if post.research_id:
+                topic = (
+                    await db.execute(
+                        select(ResearchTopic).where(ResearchTopic.id == post.research_id)
+                    )
+                ).scalar_one_or_none()
+                if topic:
+                    domain = topic.domain
+            try:
+                await index_published_post(
+                    user_id=post.user_id,
+                    post_id=post.id,
+                    content=post.content,
+                    domain=domain,
+                    voice_style=post.voice_style,
+                    metadata={
+                        "linkedin_post_id": post.linkedin_post_id,
+                        "engagement_total": engagement_total,
+                    },
+                )
+            except Exception as exc:
+                logger.debug("post_reindex_skipped", post_id=str(post.id), error=str(exc))
+
+        await db.commit()
 
         metrics["impressions_total"] = total_imp
         metrics["avg_engagement_rate"] = (
-            round(total_eng / total_imp * 100, 2) if total_imp else 0.0
+            round(total_eng / total_imp * 100, 2)
+            if total_imp
+            else round(total_eng / len(posts), 2) if posts else 0.0
         )
         metrics["post_count"] = len(posts)
     return metrics

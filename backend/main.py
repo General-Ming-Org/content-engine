@@ -193,6 +193,7 @@ if _brand_dir.is_dir():
 from services.ai.router import router as ai_router
 from services.analytics.router import router as analytics_router
 from services.auth.router import router as auth_router
+from services.brain.router import router as brain_router
 from services.content.router import router as content_router
 from services.credentials.router import router as credentials_router
 from services.engagement.router import router as engagement_router
@@ -212,6 +213,7 @@ verified_required = [Depends(require_verified_user)]
 app.include_router(users_router, prefix="/api/users", tags=["Users"], dependencies=verified_required)
 app.include_router(credentials_router, prefix="/api/credentials", tags=["Credentials"], dependencies=verified_required)
 app.include_router(research_router, prefix="/api/research", tags=["Research"], dependencies=verified_required)
+app.include_router(brain_router, prefix="/api/brain", tags=["Brain"], dependencies=verified_required)
 app.include_router(content_router, prefix="/api/content", tags=["Content"], dependencies=verified_required)
 # LinkedIn OAuth callback — public (browser redirect, no JWT); must match API_PUBLIC_URL.
 app.include_router(linkedin_oauth_router, prefix="/api/publish", tags=["Publishing"])
