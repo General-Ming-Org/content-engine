@@ -110,7 +110,6 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
-  role: "admin" | "user";
   is_active: boolean;
   email_verified: boolean;
 }
@@ -157,16 +156,6 @@ export const changePassword = (current_password: string, new_password: string) =
   request<void>("/auth/change-password", {
     method: "POST",
     body: JSON.stringify({ current_password, new_password }),
-  });
-
-// ── Users (admin) ─────────────────────────────────────────────────────────────
-export const listUsers = () => request<AuthUser[]>("/users");
-export const setUserRole = (id: string, role: "admin" | "user") =>
-  request<AuthUser>(`/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) });
-export const setUserActive = (id: string, is_active: boolean) =>
-  request<{ id: string; is_active: boolean }>(`/users/${id}/active`, {
-    method: "PATCH",
-    body: JSON.stringify({ is_active }),
   });
 
 // ── Credentials ───────────────────────────────────────────────────────────────
@@ -274,6 +263,8 @@ export const getResearchSweepStatus = (taskId?: string) =>
   );
 export const updateTopic = (id: string, data: Partial<ResearchTopic>) =>
   request<ResearchTopic>(`/research/topics/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+export const deleteTopic = (id: string) =>
+  request<void>(`/research/topics/${id}`, { method: "DELETE" });
 
 // ── Research Brain ────────────────────────────────────────────────────────────
 export interface InspirationPost {

@@ -107,7 +107,7 @@ export default function Signup() {
         </div>
 
         <h1 className="text-2xl font-semibold mb-1">Create account</h1>
-        <p className="text-sm text-gray-400 mb-8">The first account becomes admin.</p>
+        <p className="text-sm text-gray-400 mb-8">Create your account to start generating content.</p>
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <Field label="Name" error={errors.name}>

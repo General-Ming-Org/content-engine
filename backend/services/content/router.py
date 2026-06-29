@@ -267,7 +267,10 @@ async def generate_content(
     topic_id = payload["research_topic_id"]
     topic = (
         await db.execute(
-            select(ResearchTopic).where(ResearchTopic.id == uuid.UUID(topic_id))
+            select(ResearchTopic).where(
+                ResearchTopic.id == uuid.UUID(topic_id),
+                ResearchTopic.user_id == user.id,
+            )
         )
     ).scalar_one_or_none()
     if not topic:

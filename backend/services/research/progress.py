@@ -4,12 +4,16 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
 
 from config import get_settings
 
-ACTIVE_KEY = "research_sweep:active"
 PROGRESS_PREFIX = "research_sweep:progress:"
 TTL_SECONDS = 86_400
+
+
+def _active_key(user_id: str) -> str:
+    return f"research_sweep:active:{user_id}"
 
 
 def _progress_key(task_id: str) -> str:
@@ -47,21 +51,23 @@ def _write(task_id: str, payload: dict[str, Any]) -> None:
     try:
         key = _progress_key(task_id)
         client.setex(key, TTL_SECONDS, json.dumps(payload))
-        if payload.get("status") == "running":
-            client.setex(ACTIVE_KEY, TTL_SECONDS, task_id)
-        elif payload.get("status") in {"complete", "failed", "blocked"}:
-            active = client.get(ACTIVE_KEY)
+        user_id = payload.get("user_id")
+        if user_id and payload.get("status") == "running":
+            client.setex(_active_key(str(user_id)), TTL_SECONDS, task_id)
+        elif user_id and payload.get("status") in {"complete", "failed", "blocked"}:
+            active = client.get(_active_key(str(user_id)))
             if active == task_id:
-                client.delete(ACTIVE_KEY)
+                client.delete(_active_key(str(user_id)))
     finally:
         client.close()
 
 
-def progress_start(task_id: str) -> None:
+def progress_start(task_id: str, user_id: UUID | str) -> None:
     _write(
         task_id,
         {
             "task_id": task_id,
+            "user_id": str(user_id),
             "status": "running",
             "phase": "searching",
             "current": 0,
@@ -75,11 +81,12 @@ def progress_start(task_id: str) -> None:
     )
 
 
-def progress_searching(task_id: str) -> None:
+def progress_searching(task_id: str, user_id: UUID | str) -> None:
     _write(
         task_id,
         {
             "task_id": task_id,
+            "user_id": str(user_id),
             "status": "running",
             "phase": "searching",
             "current": 0,
@@ -150,31 +157,38 @@ def progress_finish(task_id: str, result: dict[str, Any]) -> None:
     )
 
 
-def progress_fail(task_id: str, error: str) -> None:
+def progress_fail(task_id: str, error: str, user_id: UUID | str | None = None) -> None:
+    existing = _read(task_id) or {}
     _write(
         task_id,
         {
+            **existing,
             "task_id": task_id,
+            "user_id": str(user_id) if user_id else existing.get("user_id"),
             "status": "failed",
             "phase": "done",
             "current": 0,
             "total": 0,
             "percent": 100,
             "message": error,
-            "started_at": None,
+            "started_at": existing.get("started_at"),
             "finished_at": _now(),
             "result": {"status": "failed", "error": error},
         },
     )
 
 
-async def get_progress(task_id: str | None = None) -> dict[str, Any] | None:
+async def get_progress(
+    task_id: str | None = None,
+    *,
+    user_id: str | None = None,
+) -> dict[str, Any] | None:
     import redis.asyncio as aioredis
 
     client = aioredis.from_url(get_settings().redis_url, decode_responses=True)
     try:
-        if not task_id:
-            task_id = await client.get(ACTIVE_KEY)
+        if not task_id and user_id:
+            task_id = await client.get(_active_key(user_id))
         if not task_id:
             return None
         raw = await client.get(_progress_key(task_id))

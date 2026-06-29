@@ -2,7 +2,7 @@
 
 For scoped errors (e.g. "user X's publish failed"), call create_user_error.
 For system-wide errors (Redis down, embedding model unreachable), call
-broadcast_admin_error — it fans out to all admin accounts.
+broadcast_system_error — it fans out to all active accounts.
 """
 import uuid
 from datetime import datetime, timezone
@@ -71,27 +71,31 @@ async def create_user_system(user_id: UUID, title: str, message: str) -> None:
         await db.commit()
 
 
-async def broadcast_admin_error(title: str, message: str) -> None:
-    """For system-wide problems with no specific user attribution. Notifies all admins."""
+async def broadcast_system_error(title: str, message: str) -> None:
+    """For system-wide problems with no specific user attribution."""
     async with AsyncSessionLocal() as db:
-        admins = (
-            await db.execute(select(User).where(User.role == "admin", User.is_active.is_(True)))
+        users = (
+            await db.execute(select(User).where(User.is_active.is_(True)))
         ).scalars().all()
-    for admin in admins:
-        await create_user_error(admin.id, title, message)
+    for user in users:
+        await create_user_error(user.id, title, message)
 
 
-# Back-compat shims — old callers passed no user_id.
+async def broadcast_admin_error(title: str, message: str) -> None:
+    """Deprecated alias for broadcast_system_error."""
+    await broadcast_system_error(title, message)
+
+
 async def create_error_notification(title: str, message: str) -> None:
-    """Deprecated: prefer create_user_error(user_id, ...) or broadcast_admin_error."""
-    await broadcast_admin_error(title, message)
+    """Deprecated: prefer create_user_error(user_id, ...) or broadcast_system_error."""
+    await broadcast_system_error(title, message)
 
 
 async def create_system_notification(title: str, message: str) -> None:
-    """Deprecated: prefer create_user_system(user_id, ...)."""
+    """Deprecated: fans out a system notification to all active users."""
     async with AsyncSessionLocal() as db:
-        admins = (
-            await db.execute(select(User).where(User.role == "admin", User.is_active.is_(True)))
+        users = (
+            await db.execute(select(User).where(User.is_active.is_(True)))
         ).scalars().all()
-    for admin in admins:
-        await create_user_system(admin.id, title, message)
+    for user in users:
+        await create_user_system(user.id, title, message)

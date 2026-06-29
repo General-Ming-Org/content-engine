@@ -1,6 +1,7 @@
 """Tavily/Serper search for opinion-rich practitioner sources."""
 import asyncio
 import hashlib
+import uuid
 from typing import Any
 
 import httpx
@@ -111,11 +112,8 @@ def _url_fingerprint(url: str) -> str:
     return hashlib.md5(url.encode()).hexdigest()[:12]
 
 
-async def sweep(task_id: str | None = None) -> dict[str, Any]:
-    """Opinion-mining sweep: search → extract stances → gate → store top stances.
-
-    If no stance clears debatability, stores nothing — skip day beats bland post.
-    """
+async def sweep(user_id: uuid.UUID, task_id: str | None = None) -> dict[str, Any]:
+    """Opinion-mining sweep for one user: search → extract stances → gate → store."""
     from services.research.dedupe import archive_duplicate_topics
     from services.research.errors import ResearchProviderError
     from services.research.progress import progress_enriching
@@ -123,14 +121,15 @@ async def sweep(task_id: str | None = None) -> dict[str, Any]:
     from services.research.stance_extractor import extract_stances_from_results
     from services.research.stance_gates import apply_stance_gates
 
-    archived = await archive_duplicate_topics()
+    archived = await archive_duplicate_topics(user_id)
     if archived:
-        logger.info("research_sweep_deduped_existing", archived=archived)
+        logger.info("research_sweep_deduped_existing", user_id=str(user_id), archived=archived)
 
-    queries = get_sweep_queries()
+    queries = get_sweep_queries(user_id)
     tavily_params = _tavily_params()
     logger.info(
         "opinion_sweep_start",
+        user_id=str(user_id),
         task_id=task_id,
         query_count=len(queries),
         tavily_days=tavily_params["days"],
@@ -210,7 +209,7 @@ async def sweep(task_id: str | None = None) -> dict[str, Any]:
                 topic_title=stance.get("thesis", "")[:80],
             )
         try:
-            topic = await store_stance(stance)
+            topic = await store_stance(stance, user_id)
             if topic:
                 stored += 1
             else:

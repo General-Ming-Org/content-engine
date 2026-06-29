@@ -48,12 +48,6 @@ async def get_current_user_optional(
     return user if user and user.is_active else None
 
 
-async def require_admin(user: User = Depends(get_current_user)) -> User:
-    if user.role != "admin":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admin role required")
-    return user
-
-
 async def require_verified_user(user: User = Depends(get_current_user)) -> User:
     """Hard gate for application routes after signup/login.
 

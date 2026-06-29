@@ -91,7 +91,12 @@ async def generate_for_topic(
 
     async with AsyncSessionLocal() as db:
         topic = (
-            await db.execute(select(ResearchTopic).where(ResearchTopic.id == uuid.UUID(research_topic_id)))
+            await db.execute(
+                select(ResearchTopic).where(
+                    ResearchTopic.id == uuid.UUID(research_topic_id),
+                    ResearchTopic.user_id == user_id,
+                )
+            )
         ).scalar_one_or_none()
         if not topic:
             err = f"Topic {research_topic_id} not found"
@@ -265,7 +270,10 @@ async def _generate_for_user(user_id: UUID) -> dict[str, Any]:
         candidates = (
             await db.execute(
                 select(ResearchTopic)
-                .where(ResearchTopic.status.in_(["new", "used"]))
+                .where(
+                    ResearchTopic.user_id == user_id,
+                    ResearchTopic.status.in_(["new", "used"]),
+                )
                 .order_by(ResearchTopic.relevance_score.desc())
                 .limit(max_per_run * 5)
             )

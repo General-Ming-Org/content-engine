@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Sparkles, Archive, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
-import { getTopics, updateTopic, getInspirationPosts, type ResearchTopic, type InspirationPost } from "../lib/api";
-import { useAuth } from "../lib/auth";
+import { Sparkles, Archive, ChevronDown, ChevronUp, Loader2, X } from "lucide-react";
+import { getTopics, updateTopic, deleteTopic, getInspirationPosts, type ResearchTopic, type InspirationPost } from "../lib/api";
 import { ResearchSweepProgressBar } from "../components/ResearchSweepProgress";
 import { TaskProgressBar } from "../components/TaskProgressBar";
 import { useResearchSweep } from "../hooks/useResearchSweep";
@@ -24,7 +23,6 @@ const VOICE_COLORS: Record<string, string> = {
 
 export default function Research() {
   const qc = useQueryClient();
-  const { isAdmin } = useAuth();
   const [domain, setDomain] = useState<string>("");
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -47,6 +45,11 @@ export default function Research() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["topics"] }),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: deleteTopic,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["topics"] }),
+  });
+
   const contentGen = useContentGeneration({
     onComplete: () => qc.invalidateQueries({ queryKey: ["topics"] }),
   });
@@ -60,19 +63,13 @@ export default function Research() {
           <h1 className="text-xl font-semibold text-gray-100">Research</h1>
           <p className="text-sm text-gray-500 mt-0.5">{topics.length} topics available</p>
         </div>
-        {isAdmin ? (
-          <button
-            onClick={() => sweep.trigger()}
-            disabled={sweep.isBusy}
-            className="btn-primary"
-          >
-            {sweep.isBusy ? "Sweeping…" : "Run Research Sweep"}
-          </button>
-        ) : (
-          <p className="text-xs text-gray-500" title="The shared research pool is refreshed by admins.">
-            Sweeps run on a schedule.
-          </p>
-        )}
+        <button
+          onClick={() => sweep.trigger()}
+          disabled={sweep.isBusy}
+          className="btn-primary"
+        >
+          {sweep.isBusy ? "Sweeping…" : "Run Research Sweep"}
+        </button>
       </div>
 
       <ResearchSweepProgressBar
@@ -136,6 +133,7 @@ export default function Research() {
               isExpanded={expanded === topic.id}
               onToggle={() => setExpanded(expanded === topic.id ? null : topic.id)}
               onArchive={() => archiveMut.mutate(topic.id)}
+              onDismiss={() => deleteMut.mutate(topic.id)}
               onGenerate={() => contentGen.generate(topic.id)}
               isGenerating={contentGen.isGeneratingTopic(topic.id)}
             />
@@ -197,12 +195,13 @@ function InspirationFeed({ posts }: { posts: InspirationPost[] }) {
 }
 
 function TopicCard({
-  topic, isExpanded, onToggle, onArchive, onGenerate, isGenerating,
+  topic, isExpanded, onToggle, onArchive, onDismiss, onGenerate, isGenerating,
 }: {
   topic: ResearchTopic;
   isExpanded: boolean;
   onToggle: () => void;
   onArchive: () => void;
+  onDismiss: () => void;
   onGenerate: () => void;
   isGenerating: boolean;
 }) {
@@ -238,7 +237,18 @@ function TopicCard({
             <p className="text-xs text-gray-500 mt-1 line-clamp-1">{topic.summary}</p>
           )}
         </div>
-        <div className="flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDismiss();
+            }}
+            className="btn-ghost p-1.5"
+            aria-label="Remove topic"
+          >
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
           {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
         </div>
       </div>
@@ -288,7 +298,10 @@ function TopicCard({
               )}
             </button>
             <button
-              onClick={onArchive}
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchive();
+              }}
               className="flex items-center gap-1.5 btn-ghost text-xs py-1.5"
             >
               <Archive className="w-3.5 h-3.5" />

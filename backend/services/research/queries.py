@@ -6,6 +6,9 @@ OPINION-RICHNESS (where arguments live) lives in SOURCE_PREFERENCES — the main
 
 from __future__ import annotations
 
+import hashlib
+from datetime import datetime, timezone
+from uuid import UUID
 # ── A) Lane definition ────────────────────────────────────────────────────────
 # Single place to define your field. Downstream gates and query templating derive from this.
 
@@ -108,18 +111,21 @@ def build_opinion_source_queries() -> list[str]:
     return resolved[:10]
 
 
-def get_sweep_queries() -> list[str]:
+def get_sweep_queries(user_id: UUID | None = None) -> list[str]:
     """Rotate a window of queries so each sweep covers the lane without running all every time."""
-    global _query_rotation_offset
     all_queries = build_opinion_source_queries()
     if not all_queries:
         return []
     count = min(SWEEP_QUERIES_PER_RUN, len(all_queries))
-    start = _query_rotation_offset % len(all_queries)
-    selected = [all_queries[(start + i) % len(all_queries)] for i in range(count)]
-    _query_rotation_offset = (start + count) % len(all_queries)
-    return selected
-
+    if user_id is not None:
+        day = datetime.now(timezone.utc).date().isoformat()
+        seed = int(hashlib.md5(f"{user_id}:{day}".encode()).hexdigest(), 16)
+        start = seed % len(all_queries)
+    else:
+        global _query_rotation_offset
+        start = _query_rotation_offset % len(all_queries)
+        _query_rotation_offset = (start + count) % len(all_queries)
+    return [all_queries[(start + i) % len(all_queries)] for i in range(count)]
 
 def focus_area_to_domain(focus_area: str) -> str:
     return FOCUS_AREA_TO_DOMAIN.get(focus_area, "ai_ml")

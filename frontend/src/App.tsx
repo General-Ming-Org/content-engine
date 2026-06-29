@@ -1,9 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthExpiredListener } from "./components/AuthExpiredListener";
 import { AuthGate } from "./components/AuthGate";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import Layout from "./components/Layout";
-import Admin from "./pages/Admin";
 import Analytics from "./pages/Analytics";
 import Calendar from "./pages/Calendar";
 import Compose from "./pages/Compose";
@@ -17,13 +16,6 @@ import Settings from "./pages/Settings";
 import Signup from "./pages/Signup";
 import VerifyEmail from "./pages/VerifyEmail";
 import VerifyEmailRequired from "./pages/VerifyEmailRequired";
-import { useAuth } from "./lib/auth";
-
-function AdminOnly({ children }: { children: React.ReactNode }) {
-  const { isAdmin } = useAuth();
-  if (!isAdmin) return <Navigate to="/" replace />;
-  return <>{children}</>;
-}
 
 export default function App() {
   return (
@@ -53,14 +45,6 @@ export default function App() {
           <Route path="compose" element={<Compose />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="settings" element={<Settings />} />
-          <Route
-            path="admin"
-            element={
-              <AdminOnly>
-                <Admin />
-              </AdminOnly>
-            }
-          />
         </Route>
         </Routes>
       </BrowserRouter>

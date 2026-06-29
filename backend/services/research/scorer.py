@@ -47,8 +47,8 @@ def _ngram_similarity(a: str, b: str) -> float:
     return len(a_set & b_set) / len(a_set | b_set)
 
 
-async def _is_duplicate_semantic(title: str, summary: str) -> bool:
-    """Vector search against existing research topics. Returns True on near-match."""
+async def _is_duplicate_semantic(title: str, summary: str, user_id: uuid.UUID) -> bool:
+    """Vector search against this user's research topics."""
     settings = get_settings()
     try:
         store = get_vector_store()
@@ -57,22 +57,26 @@ async def _is_duplicate_semantic(title: str, summary: str) -> bool:
             query_text=f"{title}\n\n{summary}",
             limit=1,
             score_threshold=settings.vector_similarity_threshold,
+            filter_payload={"user_id": str(user_id)},
         )
         if hits:
             logger.debug("duplicate_topic_semantic", title=title, score=hits[0]["score"])
             return True
     except Exception as exc:
         logger.warning("vector_dedup_failed_falling_back", error=str(exc))
-        return await _is_duplicate_ngram_fallback(title, summary)
+        return await _is_duplicate_ngram_fallback(title, summary, user_id)
     return False
 
 
-async def _is_duplicate_ngram_fallback(title: str, summary: str) -> bool:
+async def _is_duplicate_ngram_fallback(title: str, summary: str, user_id: uuid.UUID) -> bool:
     async with AsyncSessionLocal() as db:
         recent = (
             await db.execute(
                 select(ResearchTopic)
-                .where(ResearchTopic.status.in_(["new", "assigned"]))
+                .where(
+                    ResearchTopic.user_id == user_id,
+                    ResearchTopic.status.in_(["new", "assigned"]),
+                )
                 .order_by(ResearchTopic.created_at.desc())
                 .limit(200)
             )
@@ -98,6 +102,7 @@ async def _embed_and_record(topic: ResearchTopic, synthesis: dict[str, Any]) -> 
         doc_id=topic.id,
         text=text,
         payload={
+            "user_id": str(topic.user_id),
             "title": topic.title,
             "summary": topic.summary,
             "domain": topic.domain,
@@ -109,6 +114,7 @@ async def _embed_and_record(topic: ResearchTopic, synthesis: dict[str, Any]) -> 
     async with AsyncSessionLocal() as db:
         db.add(EmbeddingRecord(
             id=uuid.uuid4(),
+            user_id=topic.user_id,
             doc_id=topic.id,
             kind="research",
             embedding_model_id=embedder.model_id,
@@ -117,7 +123,7 @@ async def _embed_and_record(topic: ResearchTopic, synthesis: dict[str, Any]) -> 
         await db.commit()
 
 
-async def score_and_store(enriched: dict[str, Any]) -> ResearchTopic | None:
+async def score_and_store(enriched: dict[str, Any], user_id: uuid.UUID) -> ResearchTopic | None:
     """Score, dedup (semantic), persist to Postgres, and index in the vector store."""
     score = _compute_score(enriched)
     synthesis = enriched.get("synthesis", {})
@@ -128,6 +134,7 @@ async def score_and_store(enriched: dict[str, Any]) -> ResearchTopic | None:
 
     if await is_duplicate_in_db(
         enriched["title"],
+        user_id,
         url=primary_url,
         sources=sources,
     ):
@@ -138,7 +145,7 @@ async def score_and_store(enriched: dict[str, Any]) -> ResearchTopic | None:
         )
         return None
 
-    if await _is_duplicate_semantic(enriched["title"], enriched["summary"]):
+    if await _is_duplicate_semantic(enriched["title"], enriched["summary"], user_id):
         logger.info(
             "research_topic_skipped",
             title=enriched["title"],
@@ -150,6 +157,7 @@ async def score_and_store(enriched: dict[str, Any]) -> ResearchTopic | None:
     async with AsyncSessionLocal() as db:
         topic = ResearchTopic(
             id=uuid.uuid4(),
+            user_id=user_id,
             title=clean["title"],
             summary=clean["summary"],
             sources=clean.get("sources"),
@@ -171,7 +179,7 @@ async def score_and_store(enriched: dict[str, Any]) -> ResearchTopic | None:
     return topic
 
 
-async def store_stance(stance: dict[str, Any]) -> ResearchTopic | None:
+async def store_stance(stance: dict[str, Any], user_id: uuid.UUID) -> ResearchTopic | None:
     """Persist a gated stance as a research topic. Scored by debatability, not key_facts."""
     from services.research.queries import focus_area_to_domain
 
@@ -180,11 +188,11 @@ async def store_stance(stance: dict[str, Any]) -> ResearchTopic | None:
     domain = focus_area_to_domain(focus_area)
     score = round(float(stance.get("debatability_score", 0)) / 10.0, 3)
 
-    if await is_duplicate_in_db(thesis, url=stance.get("source_url")):
+    if await is_duplicate_in_db(thesis, user_id, url=stance.get("source_url")):
         logger.info("stance_skipped", reason="duplicate_db", thesis=thesis[:80])
         return None
 
-    if await _is_duplicate_semantic(thesis, thesis):
+    if await _is_duplicate_semantic(thesis, thesis, user_id):
         logger.info("stance_skipped", reason="duplicate_semantic", thesis=thesis[:80])
         return None
 
@@ -198,6 +206,7 @@ async def store_stance(stance: dict[str, Any]) -> ResearchTopic | None:
     async with AsyncSessionLocal() as db:
         topic = ResearchTopic(
             id=uuid.uuid4(),
+            user_id=user_id,
             title=thesis[:200],
             summary=thesis,
             sources=sources,
