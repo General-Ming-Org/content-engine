@@ -9,7 +9,6 @@ import {
   type Post,
   type Goal,
 } from "../lib/api";
-import { useAuth } from "../lib/auth";
 import { usePublishActions } from "../hooks/usePublishActions";
 import { ResearchSweepProgressBar } from "../components/ResearchSweepProgress";
 import { useResearchSweep } from "../hooks/useResearchSweep";
@@ -46,7 +45,6 @@ function QueueCountdown({ queuedAt }: { queuedAt: string }) {
 
 export default function Dashboard() {
   const qc = useQueryClient();
-  const { isAdmin } = useAuth();
 
   const { data: postsData } = useQuery({ queryKey: ["posts"], queryFn: () => getPosts() });
   const { data: goalsData } = useQuery({ queryKey: ["goals"], queryFn: getGoals });
@@ -56,7 +54,6 @@ export default function Dashboard() {
     triggerFn: () => triggerTask("research_sweep"),
     onComplete: () => qc.invalidateQueries({ queryKey: ["posts"] }),
   });
-  const showSweepTrigger = isAdmin;
 
   const publish = usePublishActions({
     onInvalidate: () => qc.invalidateQueries({ queryKey: ["posts"] }),
@@ -82,24 +79,20 @@ export default function Dashboard() {
           <h1 className="text-xl font-semibold text-gray-100">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-0.5">{format(new Date(), "EEEE, MMMM d")}</p>
         </div>
-        {showSweepTrigger && (
-          <button
-            onClick={() => researchSweep.trigger()}
-            disabled={researchSweep.isBusy}
-            className="btn-primary"
-          >
-            {researchSweep.isBusy ? "Running…" : "Run Research Sweep"}
-          </button>
-        )}
+        <button
+          onClick={() => researchSweep.trigger()}
+          disabled={researchSweep.isBusy}
+          className="btn-primary"
+        >
+          {researchSweep.isBusy ? "Running…" : "Run Research Sweep"}
+        </button>
       </div>
 
-      {(showSweepTrigger || researchSweep.showProgressBar) && (
-        <ResearchSweepProgressBar
+      <ResearchSweepProgressBar
           progress={researchSweep.progress}
           visible={researchSweep.showProgressBar}
           onDismiss={researchSweep.dismiss}
-        />
-      )}
+      />
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">

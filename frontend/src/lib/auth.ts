@@ -79,7 +79,6 @@ export function useAuth() {
     token,
     isAuthenticated: !!token,
     isVerified: user?.email_verified === true,
-    isAdmin: user?.role === "admin",
     logout: clearToken,
   };
 }

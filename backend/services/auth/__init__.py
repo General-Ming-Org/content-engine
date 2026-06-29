@@ -1,19 +1,14 @@
-"""Auth: email/password signup, bcrypt hashing, JWT issuance, current-user resolution.
-
-Public surface:
-  - router       — mountable at /api/auth
-  - get_current_user, require_admin — FastAPI dependencies for protected routes
-  - encrypt / decrypt — Fernet wrappers for storing sensitive credentials in DB
-"""
-from services.auth.crypto import decrypt, encrypt
-from services.auth.deps import get_current_user, get_current_user_optional, require_admin
-from services.auth.router import router
+"""Auth service — signup, login, JWT issuance, and FastAPI dependencies."""
+from services.auth.deps import get_current_user, get_current_user_optional, require_verified_user
+from services.auth.jwt import create_access_token, decode_token
+from services.auth.password import hash_password, verify_password
 
 __all__ = [
-    "router",
+    "create_access_token",
+    "decode_token",
     "get_current_user",
     "get_current_user_optional",
-    "require_admin",
-    "encrypt",
-    "decrypt",
+    "hash_password",
+    "require_verified_user",
+    "verify_password",
 ]

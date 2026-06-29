@@ -11,12 +11,11 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_TTL_HOURS = 24
 
 
-def create_access_token(user_id: UUID, role: str) -> tuple[str, datetime]:
+def create_access_token(user_id: UUID) -> tuple[str, datetime]:
     settings = get_settings()
     expires_at = datetime.now(timezone.utc) + timedelta(hours=ACCESS_TOKEN_TTL_HOURS)
     payload = {
         "sub": str(user_id),
-        "role": role,
         "iat": datetime.now(timezone.utc),
         "exp": expires_at,
     }

@@ -1,17 +1,17 @@
-"""Scheduler routes — system-wide triggers gated to admins."""
+"""Scheduler routes — manual task triggers for authenticated users."""
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from models.user import User
-from services.auth.deps import get_current_user, require_admin
+from services.auth.deps import get_current_user
 
 router = APIRouter()
 
 TASK_MAP = {
     "brain_harvest": "run_brain_harvest",
     "brain_personality_refresh": "run_brain_personality_refresh",
-    "research_sweep": "run_research_sweep",
+    "research_sweep": "run_research_sweep_for_user",
     "content_generation": "run_content_generation",
     "queue_check": "check_publish_queue",
     "engagement_sweep": "run_engagement_sweep",
@@ -33,9 +33,8 @@ async def scheduler_status(_: User = Depends(get_current_user)) -> dict[str, Any
 @router.post("/trigger/{task_name}")
 async def trigger_task(
     task_name: str,
-    user: User = Depends(require_admin),
+    user: User = Depends(get_current_user),
 ) -> dict[str, str]:
-    """Admin-only — these tasks run globally and fan out to all users."""
     from services.common.rate_limit import enforce_rate_limit
 
     if task_name not in TASK_MAP:
@@ -60,5 +59,8 @@ async def trigger_task(
     fn = getattr(task_module, TASK_MAP[task_name], None)
     if fn is None:
         raise HTTPException(status_code=500, detail="Task function not found")
-    result = fn.delay()
+    if task_name == "research_sweep":
+        result = fn.delay(str(user.id))
+    else:
+        result = fn.delay()
     return {"status": "triggered", "task_name": task_name, "task_id": result.id}

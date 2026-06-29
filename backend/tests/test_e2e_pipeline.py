@@ -20,6 +20,7 @@ async def test_full_pipeline(db_session, test_user, mock_tavily):
     # 1. Create a research topic (simulating what the research sweep produces)
     topic = ResearchTopic(
         id=uuid.uuid4(),
+        user_id=test_user.id,
         title="eBPF: The Future of Linux Observability Without Kernel Modules",
         summary="eBPF enables safe kernel-level instrumentation at runtime, replacing many traditional kernel modules.",
         sources=[{

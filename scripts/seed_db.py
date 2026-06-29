@@ -7,20 +7,30 @@ from datetime import date, datetime, timedelta, timezone
 
 sys.path.insert(0, "backend")
 
+from sqlalchemy import select
+
 from database import AsyncSessionLocal, Base, engine
 from models.analytics import Goal
 from models.research import ResearchTopic
+from models.user import User
 
 
 async def main():
-    # Ensure tables exist
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     async with AsyncSessionLocal() as db:
+        user = (
+            await db.execute(select(User).where(User.is_active.is_(True)).order_by(User.created_at).limit(1))
+        ).scalar_one_or_none()
+        if user is None:
+            print("No active user found. Sign up first, then run seed_db.py.")
+            return
+
         topics = [
             ResearchTopic(
                 id=uuid.uuid4(),
+                user_id=user.id,
                 title="eBPF-Based Observability: Replacing Traditional APM Agents",
                 summary="eBPF enables kernel-level telemetry collection without process injection, "
                         "eliminating the 3-8% CPU overhead typical APM agents carry.",
@@ -46,6 +56,7 @@ async def main():
             ),
             ResearchTopic(
                 id=uuid.uuid4(),
+                user_id=user.id,
                 title="LLM Inference at the Edge: Apple Silicon vs NVIDIA for On-Prem Deployment",
                 summary="Apple M-series chips deliver 60-80 tokens/sec on 7B models at 15W, "
                         "making them viable alternatives to cloud inference for privacy-sensitive workloads.",
@@ -71,6 +82,7 @@ async def main():
             ),
             ResearchTopic(
                 id=uuid.uuid4(),
+                user_id=user.id,
                 title="Apache Iceberg vs Delta Lake: The Table Format War in 2025",
                 summary="Iceberg's multi-engine compatibility and Delta Lake's Databricks ecosystem lock-in "
                         "represent fundamentally different bets on the future of the lakehouse.",
@@ -99,6 +111,7 @@ async def main():
         goals = [
             Goal(
                 id=uuid.uuid4(),
+                user_id=user.id,
                 metric_name="linkedin_followers",
                 target_value=1000,
                 target_date=date.today() + timedelta(days=120),
@@ -107,6 +120,7 @@ async def main():
             ),
             Goal(
                 id=uuid.uuid4(),
+                user_id=user.id,
                 metric_name="avg_engagement_rate",
                 target_value=3.0,
                 target_date=date.today() + timedelta(days=180),
@@ -119,7 +133,7 @@ async def main():
             db.add(item)
         await db.commit()
 
-    print(f"Seeded {len(topics)} research topics and {len(goals)} goals.")
+    print(f"Seeded {len(topics)} research topics and {len(goals)} goals for user {user.email}.")
 
 
 if __name__ == "__main__":

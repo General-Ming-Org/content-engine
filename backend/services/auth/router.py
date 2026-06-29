@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
@@ -62,7 +62,6 @@ class UserResponse(BaseModel):
     id: str
     email: str
     name: str
-    role: str
     is_active: bool
     email_verified: bool
 
@@ -107,7 +106,6 @@ def _serialize(u: User) -> dict:
         "id": str(u.id),
         "email": u.email,
         "name": u.name,
-        "role": u.role,
         "is_active": u.is_active,
         "email_verified": u.email_verified_at is not None,
     }
@@ -121,35 +119,27 @@ async def signup(
     background: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
-    """Register a new account. First *active* account becomes admin."""
+    """Register a new account."""
     existing = (
         await db.execute(select(User).where(User.email == payload.email.lower()))
     ).scalar_one_or_none()
     if existing:
         raise HTTPException(status.HTTP_409_CONFLICT, "An account with this email already exists.")
 
-    # Ignore inactive seed/legacy accounts (e.g. `legacy@content-engine.local`
-    # created by migration 003) so the first real signup still becomes admin.
-    active_count = (
-        await db.execute(select(func.count(User.id)).where(User.is_active.is_(True)))
-    ).scalar_one()
-    role = "admin" if active_count == 0 else "user"
-
     user = User(
         email=payload.email.lower(),
         password_hash=hash_password(payload.password),
         name=payload.name,
-        role=role,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    logger.info("user_signup", user_id=str(user.id), role=role)
+    logger.info("user_signup", user_id=str(user.id))
 
     raw_token = await issue_verification_token(db, user)
     background.add_task(send_verification_email, user, raw_token, _public_origin(request))
 
-    access_token, exp = create_access_token(user.id, user.role)
+    access_token, exp = create_access_token(user.id)
     return TokenResponse(access_token=access_token, expires_at=exp, user=_serialize(user))
 
 
@@ -174,7 +164,7 @@ async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)) -> To
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
-    access_token, exp = create_access_token(user.id, user.role)
+    access_token, exp = create_access_token(user.id)
     return TokenResponse(access_token=access_token, expires_at=exp, user=_serialize(user))
 
 

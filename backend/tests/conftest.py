@@ -99,7 +99,6 @@ async def test_user(db_session: AsyncSession) -> User:
         email=f"test-{uuid.uuid4().hex[:8]}@example.com",
         password_hash="test-password-hash",
         name="Test User",
-        role="admin",
         is_active=True,
     )
     db_session.add(user)

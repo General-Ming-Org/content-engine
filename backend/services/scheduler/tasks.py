@@ -99,29 +99,53 @@ def run_brain_personality_refresh(self) -> dict[str, Any]:
 
 # ── Research ──────────────────────────────────────────────────────────────────
 
-@celery_app.task(name="services.scheduler.tasks.run_research_sweep", bind=True, max_retries=3)
-def run_research_sweep(self) -> dict[str, Any]:
+@celery_app.task(name="services.scheduler.tasks.run_research_sweep_for_user", bind=True, max_retries=3)
+def run_research_sweep_for_user(self, user_id: str) -> dict[str, Any]:
+    from uuid import UUID
+
     task_id = self.request.id or ""
+    uid = UUID(user_id)
     from services.research.notify import notify_sweep_outcome
     from services.research.progress import progress_fail, progress_finish, progress_start
 
     if task_id:
-        progress_start(task_id)
+        progress_start(task_id, uid)
     try:
         from services.research.searcher import sweep as research_sweep
 
-        result = _run(research_sweep(task_id or None))
+        result = _run(research_sweep(uid, task_id or None))
         if task_id:
             progress_finish(task_id, result)
-        _run(notify_sweep_outcome(result))
+        _run(notify_sweep_outcome(result, uid))
         return result
     except Exception as exc:
-        log.error("research_sweep_failed", error=str(exc))
+        log.error("research_sweep_failed", user_id=user_id, error=str(exc))
         if task_id:
-            progress_fail(task_id, str(exc))
+            progress_fail(task_id, str(exc), uid)
         if self.request.retries >= self.max_retries:
-            _notify_error("Research sweep failed", str(exc))
+            _notify_error("Research sweep failed", str(exc), user_id=uid)
         raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@celery_app.task(name="services.scheduler.tasks.run_research_sweep", bind=True, max_retries=3)
+def run_research_sweep(self) -> dict[str, Any]:
+    """Scheduled: enqueue one sweep per active user."""
+    from sqlalchemy import select
+
+    from database import AsyncSessionLocal
+    from models.user import User
+
+    async def _active_user_ids() -> list[str]:
+        async with AsyncSessionLocal() as db:
+            rows = (
+                await db.execute(select(User.id).where(User.is_active.is_(True)))
+            ).scalars().all()
+            return [str(row) for row in rows]
+
+    user_ids = _run(_active_user_ids())
+    for uid in user_ids:
+        run_research_sweep_for_user.delay(uid)
+    return {"triggered": len(user_ids)}
 
 
 # ── Content ───────────────────────────────────────────────────────────────────
@@ -292,10 +316,16 @@ def send_evening_email(self) -> dict[str, Any]:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _notify_error(title: str, message: str) -> None:
+def _notify_error(title: str, message: str, user_id=None) -> None:
     """Fire-and-forget: create a dashboard error notification."""
     try:
-        from services.notifications.notifier import create_error_notification
-        _run(create_error_notification(title, message))
+        from uuid import UUID
+
+        from services.notifications.notifier import broadcast_system_error, create_user_error
+
+        if user_id is not None:
+            _run(create_user_error(UUID(str(user_id)), title, message))
+        else:
+            _run(broadcast_system_error(title, message))
     except Exception:
         pass

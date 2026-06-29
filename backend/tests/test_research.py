@@ -29,10 +29,13 @@ def test_opinion_queries_vendor_agnostic():
 
 
 def test_sweep_query_rotation():
-    first = get_sweep_queries()
-    second = get_sweep_queries()
+    import uuid
+
+    user_a = uuid.uuid4()
+    first = get_sweep_queries(user_a)
+    second = get_sweep_queries(user_a)
     assert len(first) >= 1
-    assert first != second or len(build_opinion_source_queries()) <= len(first)
+    assert first == second
 
 
 def test_tavily_params_surface_config():
@@ -120,8 +123,10 @@ def test_compute_score_legacy_synthesis():
 
 @pytest.mark.asyncio
 async def test_opinion_sweep_skips_when_no_stances(mock_tavily):
+    import uuid
     from unittest.mock import AsyncMock, patch
 
+    user_id = uuid.uuid4()
     with patch(
         "services.research.dedupe.archive_duplicate_topics",
         new_callable=AsyncMock,
@@ -134,7 +139,7 @@ async def test_opinion_sweep_skips_when_no_stances(mock_tavily):
         ):
             from services.research.searcher import sweep
 
-            result = await sweep()
+            result = await sweep(user_id)
             assert result["status"] == "complete"
             assert result["results_stored"] == 0
             assert result["skip_reasons"].get("no_debatable_stances") == 1
@@ -142,8 +147,10 @@ async def test_opinion_sweep_skips_when_no_stances(mock_tavily):
 
 @pytest.mark.asyncio
 async def test_opinion_sweep_stores_gated_stance(mock_tavily):
+    import uuid
     from unittest.mock import AsyncMock, MagicMock, patch
 
+    user_id = uuid.uuid4()
     stance = {
         "thesis": "Most RAG pipelines over-index on chunk size",
         "anti_position": "bigger chunks are always better",
@@ -169,7 +176,7 @@ async def test_opinion_sweep_stores_gated_stance(mock_tavily):
                 mock_store.return_value = MagicMock()
                 from services.research.searcher import sweep
 
-                result = await sweep()
+                result = await sweep(user_id)
                 assert result["status"] == "complete"
                 assert result["results_stored"] == 1
-                mock_store.assert_called_once()
+                mock_store.assert_called_once_with(stance, user_id)

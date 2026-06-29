@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from typing import Any
 from urllib.parse import urlparse, urlunparse
 
@@ -49,11 +50,12 @@ def urls_from_sources(sources: Any) -> set[str]:
 
 async def is_duplicate_in_db(
     title: str,
+    user_id: uuid.UUID,
     *,
     url: str | None = None,
     sources: Any = None,
 ) -> bool:
-    """True if an active topic already exists with the same title or canonical URL."""
+    """True if this user already has an active topic with the same title or URL."""
     norm_title = normalize_title(title)
     candidate_urls = set()
     if url:
@@ -65,7 +67,10 @@ async def is_duplicate_in_db(
     async with AsyncSessionLocal() as db:
         rows = (
             await db.execute(
-                select(ResearchTopic).where(ResearchTopic.status.in_(["new", "assigned"]))
+                select(ResearchTopic).where(
+                    ResearchTopic.user_id == user_id,
+                    ResearchTopic.status.in_(["new", "assigned"]),
+                )
             )
         ).scalars().all()
 
@@ -77,13 +82,16 @@ async def is_duplicate_in_db(
     return False
 
 
-async def archive_duplicate_topics() -> int:
-    """Archive extra copies of the same topic (keeps highest relevance_score)."""
+async def archive_duplicate_topics(user_id: uuid.UUID) -> int:
+    """Archive extra copies of the same topic for one user (keeps highest relevance_score)."""
     archived = 0
     async with AsyncSessionLocal() as db:
         rows = (
             await db.execute(
-                select(ResearchTopic).where(ResearchTopic.status == "new")
+                select(ResearchTopic).where(
+                    ResearchTopic.user_id == user_id,
+                    ResearchTopic.status == "new",
+                )
             )
         ).scalars().all()
 

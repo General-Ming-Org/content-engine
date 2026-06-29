@@ -203,14 +203,12 @@ from services.publishing.router import router as publishing_router
 from services.research.router import router as research_router
 from services.scheduler.router import router as scheduler_router
 from services.settings_router import router as settings_router
-from services.users.router import router as users_router
 
 # Public endpoints — no auth required
 app.include_router(auth_router, prefix="/api/auth", tags=["Auth"])
 
 # Authenticated app endpoints — every route below requires a verified email.
 verified_required = [Depends(require_verified_user)]
-app.include_router(users_router, prefix="/api/users", tags=["Users"], dependencies=verified_required)
 app.include_router(credentials_router, prefix="/api/credentials", tags=["Credentials"], dependencies=verified_required)
 app.include_router(research_router, prefix="/api/research", tags=["Research"], dependencies=verified_required)
 app.include_router(brain_router, prefix="/api/brain", tags=["Brain"], dependencies=verified_required)

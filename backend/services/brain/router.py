@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from models.user import User
-from services.auth.deps import get_current_user, require_admin
+from services.auth.deps import get_current_user
 
 router = APIRouter()
 
@@ -29,7 +29,7 @@ async def list_inspiration_posts(
 
 
 @router.post("/inspiration/harvest")
-async def trigger_harvest(_: User = Depends(require_admin)) -> dict[str, Any]:
+async def trigger_harvest(_: User = Depends(get_current_user)) -> dict[str, Any]:
     from services.brain.signal_harvester import harvest_signals
 
     return await harvest_signals()

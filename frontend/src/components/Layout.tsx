@@ -2,7 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard, Calendar, Library, Search, MessageSquare,
-  BarChart2, PenSquare, Bell, Settings, Users, LogOut,
+  BarChart2, PenSquare, Bell, Settings, LogOut,
 } from "lucide-react";
 import { getUnreadCount } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -22,7 +22,7 @@ const NAV = [
 
 export default function Layout() {
   const navigate = useNavigate();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, logout } = useAuth();
 
   const { data: countData } = useQuery({
     queryKey: ["unread-count"],
@@ -98,27 +98,12 @@ export default function Layout() {
             <Settings className="w-4 h-4" />
             Settings
           </NavLink>
-          {isAdmin && (
-            <NavLink
-              to="/admin"
-              className={({ isActive }) =>
-                clsx(
-                  "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors",
-                  isActive ? "bg-gray-800 text-gray-100" : "text-gray-400 hover:text-gray-100 hover:bg-gray-800/60"
-                )
-              }
-            >
-              <Users className="w-4 h-4" />
-              Users
-            </NavLink>
-          )}
         </div>
 
         <div className="px-3 py-3 border-t border-gray-800">
           <div className="px-3 py-2 text-xs text-gray-500 truncate">
             <div className="truncate text-gray-300">{user?.name}</div>
             <div className="truncate">{user?.email}</div>
-            {isAdmin && <span className="mt-1 inline-block text-[color:var(--accent)]">admin</span>}
           </div>
           <button
             onClick={handleLogout}
