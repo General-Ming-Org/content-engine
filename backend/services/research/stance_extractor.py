@@ -59,8 +59,8 @@ async def extract_stances_from_results(
             from services.research.errors import classify_provider_error
 
             provider_error = classify_provider_error(exc)
-        except Exception:
-            pass
+        except Exception as classify_exc:
+            logger.debug("provider_error_classification_failed", error=str(classify_exc))
         if provider_error:
             raise provider_error from exc
         logger.warning(
