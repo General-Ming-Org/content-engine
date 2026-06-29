@@ -37,6 +37,12 @@ ASYNC_SESSION_LOCAL_PATCH_TARGETS = (
     "services.notifications.email_digest.AsyncSessionLocal",
     "services.ai.reembed.AsyncSessionLocal",
     "services.ai.ingestion.AsyncSessionLocal",
+    "services.content.tone.AsyncSessionLocal",
+    "services.brain.personality.AsyncSessionLocal",
+    "services.brain.signal_harvester.AsyncSessionLocal",
+    "services.brain.style_brief.AsyncSessionLocal",
+    "services.brain.feedback.AsyncSessionLocal",
+    "services.brain.pattern_extractor.AsyncSessionLocal",
 )
 
 
