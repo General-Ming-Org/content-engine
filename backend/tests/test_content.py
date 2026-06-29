@@ -6,6 +6,9 @@ import pytest
 
 from services.content.prompts import BANNED_PHRASES
 from services.content.linkedin import _validate_post, generate_post
+from services.content.tone import DEFAULT_TONE
+
+_TONE = DEFAULT_TONE
 
 _MOCK_POST = (
     "The real cost of distributed tracing isn't the tooling — it's the cardinality explosion "
@@ -19,19 +22,19 @@ _MOCK_POST = (
 
 
 def test_validate_post_too_short():
-    issues = _validate_post("Short post. #tech #ai #ml")
+    issues = _validate_post("Short post. #tech #ai #ml", _TONE)
     assert any("Too short" in i for i in issues)
 
 
 def test_validate_post_banned_phrase():
     long_post = "X" * 1200 + "\n\nIn today's rapidly evolving landscape... #tech #ai #software #engineering #cloud"
-    issues = _validate_post(long_post)
+    issues = _validate_post(long_post, _TONE)
     assert any("rapidly evolving" in i for i in issues)
 
 
 def test_validate_post_too_few_hashtags():
     post = "A" * 1300 + "\n#tech"
-    issues = _validate_post(post)
+    issues = _validate_post(post, _TONE)
     assert any("hashtags" in i.lower() for i in issues)
 
 
@@ -50,7 +53,7 @@ def test_validate_post_valid():
     while len(content) < 1200:
         content = content.replace("#SoftwareEngineering", "#SoftwareEngineering #Architecture")
 
-    issues = _validate_post(content)
+    issues = _validate_post(content, _TONE)
     assert not any("Too short" in i or "Too long" in i for i in issues)
 
 
@@ -61,8 +64,25 @@ def test_banned_phrases_list_not_empty():
 @pytest.mark.asyncio
 async def test_generate_post_mocked():
     """Post generation with mocked LLM should return structured output."""
-    with patch("services.content.linkedin.generate", new_callable=AsyncMock, return_value=_MOCK_POST):
-        result = await generate_post(
+    with (
+        patch("services.content.linkedin.generate", new_callable=AsyncMock, return_value=_MOCK_POST),
+        patch("services.content.linkedin.load_tone_preferences", new_callable=AsyncMock, return_value=_TONE),
+        patch("services.content.linkedin._retrieve_voice_examples", new_callable=AsyncMock, return_value=""),
+    ):
+        with patch(
+            "services.brain.personality.get_personality_overlay",
+            new_callable=AsyncMock,
+            return_value="",
+        ), patch(
+            "services.brain.style_brief.get_style_brief",
+            new_callable=AsyncMock,
+            return_value="",
+        ), patch(
+            "services.brain.novelty_gate.check_novelty",
+            new_callable=AsyncMock,
+            return_value={"warnings": [], "metadata": {}, "should_regenerate": False},
+        ):
+            result = await generate_post(
             user_id=uuid.uuid4(),
             title="Distributed Tracing Cost",
             domain="sre_infra",
@@ -70,6 +90,6 @@ async def test_generate_post_mocked():
             key_facts=["tail-based sampling reduces cost 85%", "cardinality explosion at 100+ services"],
             why_it_matters="Engineers waste $40k/month on trace storage without proper sampling",
             trade_offs="Sampling always trades completeness for cost",
-        )
+            )
     assert "content" in result
     assert "hashtags" in result
