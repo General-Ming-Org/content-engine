@@ -13,7 +13,7 @@ import structlog
 from database import AsyncSessionLocal
 from models.embeddings import EmbeddingRecord
 from services.ai.embeddings import get_active_embedder
-from services.ai.vector_store import KIND_ARTICLES, KIND_POSTS, get_vector_store
+from services.ai.vector_store import KIND_ARTICLES, KIND_INSPIRATION, KIND_POSTS, get_vector_store
 
 logger = structlog.get_logger(__name__)
 
@@ -92,3 +92,31 @@ async def index_published_article(
         logger.info("article_indexed", article_id=str(article_id), user_id=str(user_id))
     except Exception as exc:
         logger.error("article_index_failed", article_id=str(article_id), error=str(exc))
+
+
+async def index_inspiration_post(
+    post_id: uuid.UUID,
+    hook_text: str,
+    focus_area: str,
+    domain: str,
+    traction_score: float,
+    pattern_tags: dict[str, Any] | None = None,
+) -> None:
+    try:
+        store = get_vector_store()
+        await store.upsert(
+            kind=KIND_INSPIRATION,
+            doc_id=post_id,
+            text=hook_text,
+            payload={
+                "focus_area": focus_area,
+                "domain": domain,
+                "traction_score": traction_score,
+                "hook_type": (pattern_tags or {}).get("hook_type", ""),
+                "pattern_tags": pattern_tags or {},
+            },
+        )
+        await _record_provenance(None, post_id, "inspiration", hook_text)
+        logger.info("inspiration_indexed", post_id=str(post_id))
+    except Exception as exc:
+        logger.error("inspiration_index_failed", post_id=str(post_id), error=str(exc))

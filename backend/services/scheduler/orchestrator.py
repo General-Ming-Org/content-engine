@@ -8,6 +8,11 @@ logger = structlog.get_logger(__name__)
 # Beat schedule — all times in ET, expressed in UTC for Celery
 # Configurable overrides come from user_settings table at task start time.
 BEAT_SCHEDULE = {
+    "brain-signal-harvest": {
+        "task": "services.scheduler.tasks.run_brain_harvest",
+        "schedule": "0 12 * * *",  # 7 AM ET = 12:00 UTC
+        "options": {"queue": "default"},
+    },
     "research-sweep-morning": {
         "task": "services.scheduler.tasks.run_research_sweep",
         "schedule": "0 13 * * *",  # 8 AM ET = 13:00 UTC
@@ -56,6 +61,11 @@ BEAT_SCHEDULE = {
     "weekly-report": {
         "task": "services.scheduler.tasks.generate_weekly_report",
         "schedule": "0 1 * * 1",  # Sunday 8 PM ET = Monday 01:00 UTC
+        "options": {"queue": "default"},
+    },
+    "brain-personality-refresh": {
+        "task": "services.scheduler.tasks.run_brain_personality_refresh",
+        "schedule": "0 0 * * 1",  # Sunday 7 PM ET = Monday 00:00 UTC
         "options": {"queue": "default"},
     },
 }

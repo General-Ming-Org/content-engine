@@ -25,8 +25,9 @@ KIND_RESEARCH = "research"     # research_topics — for dedup + cache before re
 KIND_POSTS = "posts"           # published LinkedIn posts — for voice consistency
 KIND_ARTICLES = "articles"     # published Substack articles
 KIND_SOURCES = "sources"       # extracted source text — for retrieving prior reads
+KIND_INSPIRATION = "inspiration"  # harvested LinkedIn posts — style patterns only
 
-_VALID_KINDS = {KIND_RESEARCH, KIND_POSTS, KIND_ARTICLES, KIND_SOURCES}
+_VALID_KINDS = {KIND_RESEARCH, KIND_POSTS, KIND_ARTICLES, KIND_SOURCES, KIND_INSPIRATION}
 
 
 def _safe_model_id(model_id: str) -> str:

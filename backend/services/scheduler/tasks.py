@@ -68,6 +68,35 @@ def _run(coro):
     return asyncio.get_event_loop().run_until_complete(coro)
 
 
+# ── Research Brain ────────────────────────────────────────────────────────────
+
+@celery_app.task(name="services.scheduler.tasks.run_brain_harvest", bind=True, max_retries=3)
+def run_brain_harvest(self) -> dict[str, Any]:
+    try:
+        from services.brain.signal_harvester import harvest_signals
+
+        return _run(harvest_signals())
+    except Exception as exc:
+        log.error("brain_harvest_failed", error=str(exc))
+        if self.request.retries >= self.max_retries:
+            _notify_error("Brain signal harvest failed", str(exc))
+        raise self.retry(exc=exc, countdown=60 * (2 ** self.request.retries))
+
+
+@celery_app.task(name="services.scheduler.tasks.run_brain_personality_refresh", bind=True, max_retries=3)
+def run_brain_personality_refresh(self) -> dict[str, Any]:
+    try:
+        from services.brain.feedback import apply_feedback_all
+        from services.brain.personality import refresh_all_profiles
+
+        feedback = _run(apply_feedback_all())
+        profiles = _run(refresh_all_profiles())
+        return {"feedback": feedback, "profiles": profiles}
+    except Exception as exc:
+        log.error("brain_personality_refresh_failed", error=str(exc))
+        raise self.retry(exc=exc, countdown=120 * (2 ** self.request.retries))
+
+
 # ── Research ──────────────────────────────────────────────────────────────────
 
 @celery_app.task(name="services.scheduler.tasks.run_research_sweep", bind=True, max_retries=3)

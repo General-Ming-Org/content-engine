@@ -1,4 +1,5 @@
 from models.analytics import Goal, MetricSnapshot, StrategyReport
+from models.brain import InspirationPost, UserVoiceProfile
 from models.content import Article, Post
 from models.embeddings import EmbeddingRecord
 from models.engagement import EngagementAction
@@ -12,6 +13,8 @@ __all__ = [
     "User",
     "UserCredential",
     "ResearchTopic",
+    "InspirationPost",
+    "UserVoiceProfile",
     "Post",
     "Article",
     "EngagementAction",

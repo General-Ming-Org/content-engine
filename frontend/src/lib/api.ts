@@ -275,6 +275,47 @@ export const getResearchSweepStatus = (taskId?: string) =>
 export const updateTopic = (id: string, data: Partial<ResearchTopic>) =>
   request<ResearchTopic>(`/research/topics/${id}`, { method: "PATCH", body: JSON.stringify(data) });
 
+// ── Research Brain ────────────────────────────────────────────────────────────
+export interface InspirationPost {
+  id: string;
+  url: string;
+  author_handle: string | null;
+  hook_text: string;
+  focus_area: string;
+  domain: string;
+  traction_score: number;
+  pattern_tags: Record<string, string> | null;
+  harvested_at: string;
+  status: string;
+}
+
+export interface UserVoiceProfile {
+  user_id: string;
+  personality_summary: string | null;
+  hook_affinites: Record<string, number> | null;
+  structural_preferences: Record<string, unknown> | null;
+  sample_phrases: string[] | null;
+  focus_areas: string[];
+  bio_context: string | null;
+  insights: Record<string, unknown> | null;
+  updated_at: string | null;
+}
+
+export const getInspirationPosts = (params?: { domain?: string; min_traction?: number }) =>
+  request<{ posts: InspirationPost[] }>(
+    `/brain/inspiration${params ? "?" + new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)])
+    ) : ""}`,
+  );
+export const triggerBrainHarvest = () =>
+  request<Record<string, unknown>>("/brain/inspiration/harvest", { method: "POST" });
+export const getPersonality = () => request<UserVoiceProfile>("/brain/personality");
+export const updatePersonalityBio = (data: { bio_context?: string; focus_areas?: string[] }) =>
+  request<UserVoiceProfile>("/brain/personality/bio", { method: "PUT", body: JSON.stringify(data) });
+export const getBrainInsights = () => request<{ insights: Record<string, unknown> }>("/brain/insights");
+export const refreshPersonality = () =>
+  request<Record<string, unknown>>("/brain/personality/refresh", { method: "POST" });
+
 // ── Content ───────────────────────────────────────────────────────────────────
 export const getCalendar = (view?: string) =>
   request<CalendarData>(`/content/calendar${view ? `?view=${view}` : ""}`);

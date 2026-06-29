@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Sparkles, Archive, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
-import { getTopics, updateTopic, type ResearchTopic } from "../lib/api";
+import { getTopics, updateTopic, getInspirationPosts, type ResearchTopic, type InspirationPost } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { ResearchSweepProgressBar } from "../components/ResearchSweepProgress";
 import { TaskProgressBar } from "../components/TaskProgressBar";
@@ -31,6 +31,11 @@ export default function Research() {
   const { data, isLoading } = useQuery({
     queryKey: ["topics", domain],
     queryFn: () => getTopics(domain ? { domain, status: "new" } : { status: "new" }),
+  });
+
+  const { data: inspirationData } = useQuery({
+    queryKey: ["inspiration", domain],
+    queryFn: () => getInspirationPosts(domain ? { domain, min_traction: 0.3 } : { min_traction: 0.3 }),
   });
 
   const sweep = useResearchSweep({
@@ -103,6 +108,10 @@ export default function Research() {
         ))}
       </div>
 
+      {(inspirationData?.posts?.length ?? 0) > 0 && (
+        <InspirationFeed posts={inspirationData!.posts} />
+      )}
+
       {isLoading ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
@@ -145,6 +154,41 @@ function dedupeTopicsByTitle(topics: ResearchTopic[]): ResearchTopic[] {
   }
   return [...byKey.values()].sort(
     (a, b) => (b.relevance_score ?? 0) - (a.relevance_score ?? 0),
+  );
+}
+
+function InspirationFeed({ posts }: { posts: InspirationPost[] }) {
+  return (
+    <div className="mb-8">
+      <h2 className="text-sm font-semibold text-gray-300 mb-2">LinkedIn Inspiration Feed</h2>
+      <p className="text-xs text-gray-500 mb-3">
+        High-traction patterns harvested from LinkedIn — structure only, not copy-paste substance.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {posts.slice(0, 6).map((p) => (
+          <a
+            key={p.id}
+            href={p.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block bg-gray-900 border border-gray-800 rounded-lg p-3 hover:border-gray-600 transition-colors"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`badge ${DOMAIN_COLORS[p.domain] ?? "bg-gray-800 text-gray-400"}`}>
+                {DOMAIN_LABELS[p.domain] ?? p.domain}
+              </span>
+              <span className="text-xs text-gray-600 ml-auto">traction {p.traction_score.toFixed(2)}</span>
+            </div>
+            <p className="text-xs text-gray-300 line-clamp-2">{p.hook_text}</p>
+            {p.pattern_tags?.hook_type && (
+              <p className="text-xs text-gray-500 mt-1">
+                {p.pattern_tags.hook_type} · {p.pattern_tags.structure ?? "—"}
+              </p>
+            )}
+          </a>
+        ))}
+      </div>
+    </div>
   );
 }
 

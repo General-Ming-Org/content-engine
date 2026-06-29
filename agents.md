@@ -26,7 +26,7 @@ The system is multi-user: most agents iterate over `users WHERE is_active = true
 - `model_router.py` — single configured provider/model resolver with missing-config notifications
 - `llm_client.py` — LiteLLM wrapper; the single LLM entrypoint
 - `embeddings.py` — `EmbeddingProvider` ABC and concrete implementations
-- `vector_store.py` — Qdrant wrapper, kind constants (`KIND_RESEARCH`, `KIND_POSTS`, `KIND_ARTICLES`)
+- `vector_store.py` — Qdrant wrapper, kind constants (`KIND_RESEARCH`, `KIND_POSTS`, `KIND_ARTICLES`, `KIND_INSPIRATION`)
 - `ingestion.py` — `index_published_post()` / `index_published_article()` helpers
 - `reembed.py` — corpus re-embed logic
 - `mcp_servers.py` — builds the `mcp_servers` list for Claude calls that want MCP tool access
@@ -79,6 +79,44 @@ The system is multi-user: most agents iterate over `users WHERE is_active = true
 **Schedule**: Twice daily (8 AM ET, 6 PM ET). Also triggerable manually.
 
 **Output to next stage**: Sets topic `status = "new"` — the Content Generation agent picks these up.
+
+---
+
+## Agent: Research Brain
+
+**Service directory**: `backend/services/brain/`
+
+**Responsibilities**:
+- Harvest high-traction LinkedIn posts via Tavily (linkedin.com-biased queries)
+- Score candidates with engagement proxy (LLM estimate + recency + focus-area relevance)
+- Extract style patterns (hook type, structure, rhythm) — never copy substance
+- Build per-user voice profiles from own winning posts + bio + tone preferences
+- Run novelty gate before queue (thesis/hook similarity + LLM novelty assessment)
+- Close feedback loop: `posts.metrics` → winning patterns → profile + research boost
+
+**Key files**:
+- `signal_harvester.py` — Tavily/Serper LinkedIn discovery, `inspiration_posts` persistence
+- `pattern_extractor.py` — LLM style distillation, Qdrant `KIND_INSPIRATION` indexing
+- `personality.py` — `user_voice_profiles` synthesis and overlay for generation
+- `style_brief.py` — format trends injected into LinkedIn drafting
+- `novelty_gate.py` — pre-queue similarity checks (warn-only, no block)
+- `feedback.py` — weekly winner analysis, focus-area boost for content calendar
+- `queries.py` — LinkedIn signal query templates
+- `router.py` — API: inspiration feed, personality, insights
+
+**Reads from DB**: `inspiration_posts`, `user_voice_profiles`, `posts.metrics`, `user_settings.tone_preferences`
+**Writes to DB**: `inspiration_posts`, `user_voice_profiles`; Qdrant `KIND_INSPIRATION`
+
+**Hard constraints**:
+- Substance from stance mining; structure from inspiration; voice from own corpus + profile — never copy external posts verbatim
+- All LLM prompts in `services/content/prompts.py` (`LINKEDIN_SIGNAL_SCORE`, `STYLE_PATTERN_EXTRACTION`, `USER_PERSONALITY_SYNTHESIS`, `NOVELTY_ASSESSMENT`)
+- Raw content fetch capped at 3 per harvest (cost control)
+- Inspiration pool is shared; personality profiles are per-user
+- Novelty failures warn only — consistent with content validation model
+
+**Schedule**: Signal harvest 7 AM ET daily; personality refresh Sunday 7 PM ET. Novelty gate inline during content generation.
+
+**Output to next stage**: Style briefs + personality overlay → Content Creator; winning focus areas → topic selection boost
 
 ---
 
@@ -277,12 +315,14 @@ The system is multi-user: most agents iterate over `users WHERE is_active = true
 
 ### Pipeline flow
 ```
+Research Brain → (inspiration_posts + style patterns in Qdrant)
 Research Analyst → (new topics in DB)
-    → Content Creator → (queued posts/articles in DB)
-        → Publisher → (published, linkedin_post_id/substack_url set)
-            → Analytics Strategist → (metric_snapshots, reports)
-            → Engagement Manager → (engagement_actions)
-                → Notification Service → (notifications, emails)
+ → Content Creator → (queued posts/articles in DB, personality + style brief + novelty check)
+ → Publisher → (published, linkedin_post_id/substack_url set)
+ → Analytics Strategist → (posts.metrics, metric_snapshots, reports)
+ → Research Brain feedback → (user_voice_profiles, winning patterns)
+ → Engagement Manager → (engagement_actions)
+ → Notification Service → (notifications, emails)
 ```
 
 ### Feedback loops

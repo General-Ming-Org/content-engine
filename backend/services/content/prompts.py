@@ -256,3 +256,95 @@ Produce a JSON object with:
 - benchmark_comparison: {my_avg_engagement_rate: x, linkedin_benchmark: y, delta: z}
 - goal_progress: array of {metric_name, current, target, target_date, pct_complete, on_track}
 - observations: 3-5 bullet points of genuine patterns observed. No suggestions. Just what the data shows."""
+
+# ── Research Brain ────────────────────────────────────────────────────────────
+
+LINKEDIN_SIGNAL_SCORE_PROMPT = """You score LinkedIn post search results for traction and relevance.
+
+Author focus areas:
+{focus_areas}
+
+For each search result, estimate engagement from snippet cues (reaction counts, "viral", comment volume mentions).
+Return JSON with key "signals": array of objects, each with:
+- url: source URL
+- engagement_estimate: integer 1-10 (1=unknown/low, 10=clearly high traction)
+- hook_preview: first ~120 chars of the post hook if visible, else best guess from title/snippet
+- topic_tags: array of 2-4 topic tags
+- focus_area_match: exactly one string from the focus areas list, or empty string if no match
+- author_handle: LinkedIn author if visible, else empty string
+
+Search results:
+{results}
+
+Respond with only the JSON object."""
+
+STYLE_PATTERN_EXTRACTION_PROMPT = """You extract WRITING STRUCTURE from a high-traction LinkedIn post — not substance to copy.
+
+Rules:
+- Extract patterns only: hook type, paragraph rhythm, structure arc, CTA style, length bucket.
+- STRIP all specific product names, company names, personal anecdotes, and distinctive phrasing.
+- Never reproduce sentences from the source. Abstract the format, not the content.
+- Never use these banned phrases in your output:
+{banned_phrases}
+
+Post text:
+{post_text}
+
+Return JSON with exactly:
+- hook_type: one of question | contrarian_claim | story_open | data_lead | list_tease
+- structure: brief arc label (e.g. "hook → evidence → takeaway")
+- paragraph_rhythm: one of short_punchy | mixed | long_form
+- cta_style: one of question_to_reader | none | soft_follow
+- approx_length_bucket: one of short | medium | long
+
+Respond with only the JSON object."""
+
+USER_PERSONALITY_SYNTHESIS_PROMPT = """You synthesize a voice profile for a technical content creator from their own published posts.
+
+Bio context (optional):
+{bio_context}
+
+Tone preferences:
+{tone_preferences}
+
+Top performing posts (by engagement):
+{posts_sample}
+
+Return JSON with:
+- personality_summary: 3-5 sentences describing how this person sounds (first person perspective OK for description)
+- hook_affinites: object mapping hook_type → float 0-1 based on what appears to work for them
+- sample_phrases: array of 5-10 short characteristic phrases FROM their posts only (verbatim snippets, max 15 words each)
+- structural_preferences: object with preferred rhythm, typical structure, CTA tendency
+
+Do NOT invent phrases. sample_phrases must come from the provided posts.
+
+Respond with only the JSON object."""
+
+USER_PERSONALITY_OVERLAY = """Author personality (match this voice — not generic senior-engineer boilerplate):
+{personality_summary}
+
+Characteristic phrases from this author (match rhythm, do not copy verbatim):
+{sample_phrases}
+
+Hook affinities (prefer higher-weight hook types when choosing opening style):
+{hook_affinites}"""
+
+STYLE_BRIEF_FOR_DRAFT = """Format trends from high-traction posts in this lane (structure only — do NOT copy substance):
+{style_brief}
+
+Use these as structural inspiration for hook type and pacing. Your argument and examples must be original."""
+
+NOVELTY_ASSESSMENT_PROMPT = """Assess whether a draft LinkedIn post adds genuine novelty vs existing corpus.
+
+Thesis/stance:
+{thesis}
+
+Draft hook (first 200 chars):
+{hook}
+
+Return JSON with:
+- novelty_score: integer 1-10 (1=duplicate angle, 10=fresh take)
+- value_additions: array of 1-3 specific ways this draft adds value beyond a generic take
+- suggested_angle: if score < 6, one sentence suggesting a sharper angle; else empty string
+
+Respond with only the JSON object."""
