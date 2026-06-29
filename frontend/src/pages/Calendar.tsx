@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getCalendar } from "../lib/api";
 import { usePublishActions } from "../hooks/usePublishActions";
 import { WeekTimeGrid } from "../components/calendar/WeekTimeGrid";
@@ -8,6 +9,7 @@ import { EventDetailPanel } from "../components/calendar/EventDetailPanel";
 import {
   defaultWeekStart,
   eventsInWeek,
+  STATUS_COLORS,
   type CalendarEvent,
 } from "../components/calendar/calendarUtils";
 
@@ -54,36 +56,60 @@ export default function Calendar() {
     else publish.cancelArticle(selected.id);
   }
 
+  const weekLabel = `${format(weekStart, "MMM d")} – ${format(addDays(weekStart, 6), "MMM d, yyyy")}`;
+
   return (
     <div className="max-w-[1800px]">
-      <div className="page-header flex-wrap gap-4">
+      <div className="page-header mb-3">
         <div>
-          <h1 className="text-xl font-semibold text-gray-100">Calendar</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Week view · click an event for details and actions
+          <h1 className="text-xl font-semibold text-[#f3f2f1]">Calendar</h1>
+          <p className="text-sm text-[#8a8886] mt-0.5">
+            {events.length} event{events.length === 1 ? "" : "s"} this week · click an event for details
           </p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button type="button" onClick={() => setWeekStart(defaultWeekStart())} className="btn-ghost">
-            Today
-          </button>
-          <button type="button" onClick={() => setWeekStart((w) => addDays(w, -7))} className="btn-ghost">
-            ←
-          </button>
-          <span className="text-sm text-gray-300 min-w-[200px] text-center tabular-nums">
-            {format(weekStart, "MMM d")} – {format(addDays(weekStart, 6), "MMM d, yyyy")}
-          </span>
-          <button type="button" onClick={() => setWeekStart((w) => addDays(w, 7))} className="btn-ghost">
-            →
-          </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-4 text-xs text-gray-500">
-        <LegendDot className="bg-amber-500/40 border-amber-500/60" label="Queued" />
-        <LegendDot className="bg-blue-500/40 border-blue-500/60" label="Scheduled" />
-        <LegendDot className="bg-emerald-500/40 border-emerald-500/60" label="Published" />
-        <LegendDot className="bg-red-500/40 border-red-500/60" label="Failed" />
+      <div className="flex flex-wrap items-center gap-2 mb-3 p-2 rounded-lg border border-[#3b3a39] bg-[#252423]">
+        <button
+          type="button"
+          onClick={() => setWeekStart(defaultWeekStart())}
+          className="px-3 py-1.5 text-sm font-medium rounded border border-[#605e5c] text-[#f3f2f1] hover:bg-[#323130] transition-colors"
+        >
+          Today
+        </button>
+        <div className="flex items-center rounded border border-[#605e5c] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setWeekStart((w) => addDays(w, -7))}
+            className="p-2 hover:bg-[#323130] text-[#c8c6c4] transition-colors"
+            aria-label="Previous week"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setWeekStart((w) => addDays(w, 7))}
+            className="p-2 hover:bg-[#323130] text-[#c8c6c4] border-l border-[#605e5c] transition-colors"
+            aria-label="Next week"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+        <h2 className="text-sm font-semibold text-[#f3f2f1] px-1 tabular-nums">{weekLabel}</h2>
+        <span className="ml-auto text-xs font-medium text-[#c8c6c4] bg-[#323130] border border-[#605e5c] rounded px-2.5 py-1">
+          Week
+        </span>
+      </div>
+
+      <div className="flex flex-wrap gap-3 mb-3 text-[11px] text-[#8a8886]">
+        {(["queued", "scheduled", "published", "failed"] as const).map((s) => (
+          <span key={s} className="flex items-center gap-1.5 capitalize">
+            <span
+              className={`w-2.5 h-2.5 rounded-sm border-l-[3px] ${STATUS_COLORS[s].bg} ${STATUS_COLORS[s].accent} border border-[#3b3a39]`}
+            />
+            {s}
+          </span>
+        ))}
       </div>
 
       {isError && (
@@ -98,7 +124,7 @@ export default function Calendar() {
       <div className="flex flex-col lg:flex-row gap-4">
         <div className="flex-1 min-w-0">
           {isLoading ? (
-            <div className="border border-gray-800 rounded-xl bg-gray-900 animate-pulse min-h-[520px]" />
+            <div className="border border-[#3b3a39] rounded-lg bg-[#252423] animate-pulse min-h-[560px]" />
           ) : (
             <WeekTimeGrid
               weekStart={weekStart}
@@ -108,7 +134,7 @@ export default function Calendar() {
             />
           )}
           {!isLoading && events.length === 0 && (
-            <p className="text-sm text-gray-500 mt-3 text-center">
+            <p className="text-sm text-[#8a8886] mt-3 text-center">
               No content this week. Generate posts from Research or check other weeks.
             </p>
           )}
@@ -126,14 +152,5 @@ export default function Calendar() {
         />
       </div>
     </div>
-  );
-}
-
-function LegendDot({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={`w-2.5 h-2.5 rounded-sm border ${className}`} />
-      {label}
-    </span>
   );
 }

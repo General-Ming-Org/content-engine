@@ -97,6 +97,7 @@ export default function Dashboard() {
         <ResearchSweepProgressBar
           progress={researchSweep.progress}
           visible={researchSweep.showProgressBar}
+          onDismiss={researchSweep.dismiss}
         />
       )}
 

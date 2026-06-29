@@ -23,6 +23,7 @@ export function useResearchSweep(options?: {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [showProgressBar, setShowProgressBar] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const { data: activeData } = useQuery({
     queryKey: ["research-sweep-active"],
@@ -34,17 +35,19 @@ export function useResearchSweep(options?: {
   });
 
   useEffect(() => {
+    if (dismissed) return;
     if (!isBusy && !taskId && activeData?.active && activeData.progress?.task_id) {
       setTaskId(activeData.progress.task_id);
       setIsBusy(true);
       setShowProgressBar(true);
     }
-  }, [activeData, isBusy, taskId]);
+  }, [activeData, isBusy, taskId, dismissed]);
 
   const triggerMutation = useGuardedMutation({
     mutationFn: triggerFn,
     cooldownSeconds: 30,
     onMutate: () => {
+      setDismissed(false);
       setIsBusy(true);
       setShowProgressBar(true);
     },
@@ -83,23 +86,25 @@ export function useResearchSweep(options?: {
     options?.onComplete?.();
   }, [progress?.status, progress?.task_id, qc, options]);
 
-  // Re-enable the button as soon as the sweep finishes; keep the bar a bit longer.
+  // Re-enable the button as soon as the sweep finishes; keep the bar until dismissed.
   useEffect(() => {
     if (!terminal) return;
     setIsBusy(false);
-    const timer = setTimeout(() => {
-      setShowProgressBar(false);
-      setTaskId(null);
-    }, 10_000);
-    return () => clearTimeout(timer);
   }, [terminal, progress?.task_id]);
+
+  const dismiss = () => {
+    setDismissed(true);
+    setShowProgressBar(false);
+    if (terminal) setTaskId(null);
+  };
 
   const trigger = () => triggerMutation.guardedMutate();
 
   return {
     trigger,
+    dismiss,
     isBusy: isBusy || triggerMutation.isPending,
-    showProgressBar: showProgressBar || triggerMutation.isPending,
+    showProgressBar: !dismissed && (showProgressBar || triggerMutation.isPending),
     progress,
     taskId,
     error: triggerMutation.error,
