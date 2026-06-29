@@ -69,10 +69,11 @@ export function EventDetailPanel({
         <div className="flex flex-wrap items-center gap-2">
           <span
             className={clsx(
-              "text-xs font-medium px-2 py-0.5 rounded border capitalize",
+              "text-xs font-medium px-2 py-0.5 rounded-sm border-l-[3px] capitalize",
               colors.bg,
               colors.border,
               colors.text,
+              colors.accent,
             )}
           >
             {event.status}

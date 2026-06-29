@@ -12,7 +12,7 @@ import type { Article, Post } from "../../lib/api";
 export const CALENDAR_START_HOUR = 6;
 export const CALENDAR_END_HOUR = 22;
 export const SLOT_MINUTES = 30;
-export const HOUR_HEIGHT_PX = 48;
+export const HOUR_HEIGHT_PX = 56;
 
 export type CalendarEventKind = "post" | "article";
 
@@ -145,25 +145,32 @@ export function defaultWeekStart(): Date {
   return startOfWeek(new Date(), { weekStartsOn: 1 });
 }
 
-export const STATUS_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+export const STATUS_COLORS: Record<
+  string,
+  { bg: string; border: string; text: string; accent: string }
+> = {
   queued: {
-    bg: "bg-amber-500/20",
-    border: "border-amber-500/50",
-    text: "text-amber-100",
+    bg: "bg-[#3d3820]",
+    border: "border-[#c19c00]/30",
+    text: "text-[#f3e6b3]",
+    accent: "border-l-[#c19c00]",
   },
   scheduled: {
-    bg: "bg-blue-500/20",
-    border: "border-blue-500/50",
-    text: "text-blue-100",
+    bg: "bg-[#1f2f4a]",
+    border: "border-[#4f6bed]/30",
+    text: "text-[#d6e0ff]",
+    accent: "border-l-[#4f6bed]",
   },
   published: {
-    bg: "bg-emerald-500/20",
-    border: "border-emerald-500/50",
-    text: "text-emerald-100",
+    bg: "bg-[#1e3a2f]",
+    border: "border-[#13a10e]/30",
+    text: "text-[#c8f7c5]",
+    accent: "border-l-[#13a10e]",
   },
   failed: {
-    bg: "bg-red-500/20",
-    border: "border-red-500/50",
-    text: "text-red-100",
+    bg: "bg-[#442726]",
+    border: "border-[#d13438]/30",
+    text: "text-[#f9d6d8]",
+    accent: "border-l-[#d13438]",
   },
 };

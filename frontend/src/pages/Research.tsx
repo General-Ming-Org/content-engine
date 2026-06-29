@@ -75,7 +75,11 @@ export default function Research() {
         )}
       </div>
 
-      <ResearchSweepProgressBar progress={sweep.progress} visible={sweep.showProgressBar} />
+      <ResearchSweepProgressBar
+        progress={sweep.progress}
+        visible={sweep.showProgressBar}
+        onDismiss={sweep.dismiss}
+      />
       <TaskProgressBar
         progress={contentGen.progress}
         visible={contentGen.showProgressBar}
@@ -221,10 +225,13 @@ function TopicCard({
               </span>
             )}
             {topic.relevance_score != null && (
-              <span className="text-xs text-gray-600 ml-auto">
+              <span className="text-xs text-gray-600">
                 score {topic.relevance_score.toFixed(2)}
               </span>
             )}
+            <span className="text-xs text-gray-600 ml-auto tabular-nums">
+              {format(new Date(topic.created_at), "MMM d, yyyy · h:mm a")}
+            </span>
           </div>
           <h3 className="text-sm font-medium text-gray-100 line-clamp-2">{topic.title}</h3>
           {!isExpanded && topic.summary && (
@@ -287,9 +294,6 @@ function TopicCard({
               <Archive className="w-3.5 h-3.5" />
               Archive
             </button>
-            <span className="text-xs text-gray-600 ml-auto">
-              {format(new Date(topic.created_at), "MMM d, HH:mm")}
-            </span>
           </div>
         </div>
       )}

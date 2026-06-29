@@ -390,6 +390,8 @@ export const markRead = (id: string) =>
   request<void>(`/notifications/${id}/read`, { method: "PATCH" });
 export const markAllRead = () =>
   request<void>("/notifications/read-all", { method: "PATCH" });
+export const dismissNotification = (id: string) =>
+  request<void>(`/notifications/${id}`, { method: "DELETE" });
 export const getUnreadCount = () =>
   request<{ count: number }>("/notifications/unread-count");
 

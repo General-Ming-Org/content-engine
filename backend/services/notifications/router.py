@@ -1,8 +1,8 @@
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, update
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
@@ -56,6 +56,23 @@ async def mark_all_read(
         .where(Notification.user_id == user.id)
         .values(is_read=True)
     )
+    return {"status": "ok"}
+
+
+@router.delete("/{notification_id}")
+async def dismiss_notification(
+    notification_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    result = await db.execute(
+        delete(Notification).where(
+            Notification.id == notification_id,
+            Notification.user_id == user.id,
+        )
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
     return {"status": "ok"}
 
 

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AlertCircle, Info, CheckCheck, Bell } from "lucide-react";
-import { getNotifications, markRead, markAllRead, type Notification } from "../lib/api";
+import { AlertCircle, Info, CheckCheck, Bell, X } from "lucide-react";
+import { getNotifications, markRead, markAllRead, dismissNotification, type Notification } from "../lib/api";
 
 export default function Notifications() {
   const qc = useQueryClient();
@@ -12,12 +12,23 @@ export default function Notifications() {
 
   const markAllMut = useMutation({
     mutationFn: markAllRead,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications", "unread-count"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+    },
   });
 
   const markOneMut = useMutation({
     mutationFn: markRead,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications", "unread-count"] }),
+  });
+
+  const dismissMut = useMutation({
+    mutationFn: dismissNotification,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+    },
   });
 
   const notifications = data?.notifications ?? [];
@@ -57,6 +68,7 @@ export default function Notifications() {
               key={n.id}
               notification={n}
               onRead={() => markOneMut.mutate(n.id)}
+              onDismiss={() => dismissMut.mutate(n.id)}
             />
           ))}
         </div>
@@ -65,33 +77,57 @@ export default function Notifications() {
   );
 }
 
-function NotificationRow({ notification: n, onRead }: { notification: Notification; onRead: () => void }) {
+function NotificationRow({
+  notification: n,
+  onRead,
+  onDismiss,
+}: {
+  notification: Notification;
+  onRead: () => void;
+  onDismiss: () => void;
+}) {
   return (
     <div
-      className={`flex items-start gap-3 p-4 rounded-xl border transition-colors cursor-pointer ${
+      className={`flex items-start gap-3 p-4 rounded-xl border transition-colors ${
         n.is_read
           ? "bg-gray-900 border-gray-800 opacity-60"
           : "bg-gray-900 border-gray-800 hover:border-gray-700"
       }`}
-      onClick={() => !n.is_read && onRead()}
     >
-      <div className={`mt-0.5 flex-shrink-0 ${n.type === "error" ? "text-red-400" : "text-gray-500"}`}>
+      <button
+        type="button"
+        className={`mt-0.5 flex-shrink-0 ${n.type === "error" ? "text-red-400" : "text-gray-500"}`}
+        onClick={() => !n.is_read && onRead()}
+        aria-label={n.is_read ? "Read notification" : "Mark as read"}
+      >
         {n.type === "error" ? <AlertCircle className="w-4 h-4" /> : <Info className="w-4 h-4" />}
-      </div>
-      <div className="flex-1 min-w-0">
+      </button>
+      <button
+        type="button"
+        className="flex-1 min-w-0 text-left"
+        onClick={() => !n.is_read && onRead()}
+      >
         <div className="flex items-center justify-between gap-2">
           <p className={`text-sm font-medium ${n.is_read ? "text-gray-500" : "text-gray-100"}`}>
             {n.title}
           </p>
-          <span className="text-xs text-gray-600 flex-shrink-0">
-            {format(new Date(n.created_at), "MMM d, HH:mm")}
+          <span className="text-xs text-gray-600 flex-shrink-0 tabular-nums">
+            {format(new Date(n.created_at), "MMM d, yyyy · h:mm a")}
           </span>
         </div>
         <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
-      </div>
+      </button>
       {!n.is_read && (
         <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0 mt-1.5" />
       )}
+      <button
+        type="button"
+        onClick={onDismiss}
+        className="btn-ghost p-1.5 -mr-1 flex-shrink-0"
+        aria-label="Dismiss notification"
+      >
+        <X className="w-4 h-4 text-gray-500" />
+      </button>
     </div>
   );
 }
