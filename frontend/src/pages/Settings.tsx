@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Play, Check, Palette } from "lucide-react";
+import { Send, Play, Check, Palette, Activity } from "lucide-react";
 import {
   getSettings,
   updateSetting,
@@ -11,6 +11,8 @@ import {
   getPersonality,
   updatePersonalityBio,
   refreshPersonality,
+  getObservabilitySummary,
+  getObservabilityStack,
   type TaskResult,
 } from "../lib/api";
 import { LinkedInSetup } from "../components/LinkedInSetup";
@@ -35,6 +37,8 @@ export default function Settings() {
         <EmailSettings settings={settings} />
         <ToneSettings settings={settings} />
         <PersonalitySettings />
+        <ObservabilityPanel />
+        <StackStatusPanel />
         <SchedulerStatus tasks={schedulerData?.tasks ?? []} />
       </div>
     </div>
@@ -389,6 +393,150 @@ function PersonalitySettings() {
       >
         {refreshMut.isPending ? "Refreshing…" : "Refresh personality now"}
       </button>
+    </div>
+  );
+}
+
+function ObservabilityPanel() {
+  const { data, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ["observability-summary"],
+    queryFn: getObservabilitySummary,
+    refetchInterval: 30_000,
+  });
+
+  const metrics = data?.metrics;
+  const formatUptime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  };
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-[color:var(--accent)]" />
+          Observability
+        </h2>
+        <button onClick={() => refetch()} disabled={isFetching} className="btn-ghost text-xs py-1">
+          {isFetching ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 mb-4">
+        In-process counters for this API instance. Logs include <code className="text-gray-400">request_id</code> and{" "}
+        <code className="text-gray-400">user_id</code> for correlation.
+      </p>
+
+      {isLoading || !metrics ? (
+        <p className="text-xs text-gray-500">Loading metrics…</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <MetricCard label="Uptime" value={formatUptime(metrics.process.uptime_seconds)} />
+          <MetricCard label="HTTP requests" value={String(metrics.http.total_requests)} />
+          <MetricCard label="HTTP errors" value={String(metrics.http.error_requests)} />
+          <MetricCard label="LLM calls" value={String(metrics.llm.total_calls)} />
+        </div>
+      )}
+
+      {metrics && metrics.http.top_routes.length > 0 && (
+        <div>
+          <p className="text-xs uppercase tracking-wider text-gray-500 mb-2">Top routes</p>
+          <div className="space-y-1">
+            {metrics.http.top_routes.slice(0, 5).map((route) => (
+              <div key={route.route} className="flex justify-between text-xs text-gray-400">
+                <span className="truncate pr-2">{route.route}</span>
+                <span className="shrink-0 text-gray-500">
+                  {route.count} · {route.avg_duration_ms}ms avg
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StackStatusPanel() {
+  const { data, isLoading, refetch, isFetching } = useQuery({
+    queryKey: ["observability-stack"],
+    queryFn: getObservabilityStack,
+    refetchInterval: 30_000,
+  });
+
+  const statusColor = (status: string) => {
+    if (status === "running") return "text-emerald-400";
+    if (status === "degraded") return "text-amber-400";
+    if (status === "down") return "text-red-400";
+    return "text-gray-500";
+  };
+
+  return (
+    <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+          <Activity className="w-4 h-4 text-[color:var(--accent)]" />
+          Stack Status
+        </h2>
+        <button onClick={() => refetch()} disabled={isFetching} className="btn-ghost text-xs py-1">
+          {isFetching ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+      <p className="text-xs text-gray-500 mb-4">
+        What is running on the server — containers, workers, and dependency probes. On GCP, host metrics and docker
+        logs also ship to Cloud Logging via the Ops Agent.
+      </p>
+
+      {isLoading || !data ? (
+        <p className="text-xs text-gray-500">Loading stack status…</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2 mb-4 text-xs">
+            <span className={`px-2 py-1 rounded bg-gray-800 ${data.overall === "ok" ? "text-emerald-400" : "text-amber-400"}`}>
+              Overall: {data.overall}
+            </span>
+            {data.host.platform === "gcp" && (
+              <span className="px-2 py-1 rounded bg-gray-800 text-gray-400">
+                {data.host.instance} · {data.host.zone} · {data.host.machine_type}
+              </span>
+            )}
+            <span className="px-2 py-1 rounded bg-gray-800 text-gray-400">
+              Workers: {data.celery.workers_online} · Queue depth: {data.queues.celery_default_depth ?? 0}
+            </span>
+            {data.docker.socket_available && (
+              <span className="px-2 py-1 rounded bg-gray-800 text-gray-400">
+                Containers: {data.docker.containers.length}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            {data.services.map((svc) => (
+              <div key={svc.name} className="flex items-center justify-between py-1.5 border-b border-gray-800 last:border-0">
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-300 font-medium">{svc.name}</p>
+                  <p className="text-[10px] text-gray-500">{svc.role}</p>
+                </div>
+                <div className="text-right shrink-0 pl-3">
+                  <p className={`text-xs font-medium ${statusColor(svc.status)}`}>{svc.status}</p>
+                  {svc.container?.status && (
+                    <p className="text-[10px] text-gray-500 truncate max-w-[180px]">{svc.container.status}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-gray-800/50 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wider text-gray-500">{label}</p>
+      <p className="text-sm font-medium text-gray-200">{value}</p>
     </div>
   );
 }

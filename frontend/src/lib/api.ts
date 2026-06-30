@@ -252,6 +252,10 @@ export const getAiModels = () => request<AiModelsResponse>("/ai/models");
 // ── Health ────────────────────────────────────────────────────────────────────
 export const getHealth = () => request<HealthStatus>("/health");
 
+// ── Observability ─────────────────────────────────────────────────────────────
+export const getObservabilitySummary = () => request<ObservabilitySummary>("/observability/summary");
+export const getObservabilityStack = () => request<StackStatus>("/observability/stack");
+
 // ── Research ──────────────────────────────────────────────────────────────────
 export const getTopics = (params?: Record<string, string>) =>
   request<{ topics: ResearchTopic[] }>(`/research/topics${params ? "?" + new URLSearchParams(params) : ""}`);
@@ -402,6 +406,76 @@ export interface HealthStatus {
   status: "ok" | "degraded";
   services: Record<string, string>;
   version: string;
+}
+
+export interface ObservabilitySummary {
+  service: string;
+  env: string;
+  version: string;
+  metrics: {
+    process: { started_at: string; uptime_seconds: number };
+    http: {
+      total_requests: number;
+      error_requests: number;
+      avg_duration_ms: number;
+      by_status: Record<string, number>;
+      top_routes: { route: string; count: number; avg_duration_ms: number; error_count: number }[];
+    };
+    celery: {
+      tasks: Record<string, { success: number; failure: number; retry: number; avg_duration_ms: number }>;
+    };
+    llm: {
+      total_calls: number;
+      total_input_tokens: number;
+      total_output_tokens: number;
+      by_task: Record<string, { calls: number; input_tokens: number; output_tokens: number }>;
+    };
+  };
+}
+
+export interface StackStatus {
+  checked_at: string;
+  overall: "ok" | "degraded";
+  host: {
+    platform: string;
+    instance?: string;
+    zone?: string;
+    machine_type?: string;
+    project?: string;
+  };
+  docker: {
+    socket_available: boolean;
+    containers: {
+      id: string;
+      name: string;
+      image?: string;
+      state?: string;
+      status?: string;
+      health?: string | null;
+      compose_service?: string[];
+    }[];
+  };
+  services: {
+    name: string;
+    role: string;
+    required: boolean;
+    status: "running" | "degraded" | "down" | "unknown";
+    container?: StackStatus["docker"]["containers"][number] | null;
+    probe?: { status?: string; detail?: string; http_status?: number } | null;
+  }[];
+  celery: {
+    workers_online: number;
+    worker_names: string[];
+    active_tasks: number;
+    registered_tasks: Record<string, number>;
+  };
+  queues: {
+    celery_default_depth?: number;
+    beat_lock_present?: boolean;
+    redbeat_schedule_keys?: number;
+    status?: string;
+    detail?: string;
+  };
 }
 
 export interface ResearchTopic {

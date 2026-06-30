@@ -14,6 +14,23 @@ import sys
 
 import structlog
 
+_SERVICE_NAME = "content-engine"
+_SERVICE_VERSION = "0.1.0"
+
+
+def _add_service_context(
+    _logger: structlog.types.WrappedLogger,
+    _method_name: str,
+    event_dict: structlog.types.EventDict,
+) -> structlog.types.EventDict:
+    from config import get_settings
+
+    settings = get_settings()
+    event_dict.setdefault("service", _SERVICE_NAME)
+    event_dict.setdefault("version", _SERVICE_VERSION)
+    event_dict.setdefault("env", settings.app_env)
+    return event_dict
+
 
 _LIBRARY_LOG_LEVELS = {
     "sqlalchemy.engine": logging.WARNING,
@@ -37,6 +54,7 @@ def configure_logging(level: str = "INFO", *, is_production: bool = False) -> No
     shared_processors: list = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
+        _add_service_context,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,

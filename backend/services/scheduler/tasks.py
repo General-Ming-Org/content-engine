@@ -62,6 +62,10 @@ celery_app.conf.update(
     beat_scheduler="redbeat.RedBeatScheduler",
 )
 
+from services.observability.celery_hooks import register_celery_observability
+
+register_celery_observability()
+
 
 def _run(coro):
     """Run a coroutine from a sync Celery task."""

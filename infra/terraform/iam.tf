@@ -26,6 +26,12 @@ resource "google_project_iam_member" "vm_logging" {
   member  = "serviceAccount:${google_service_account.vm.email}"
 }
 
+resource "google_project_iam_member" "vm_monitoring" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.vm.email}"
+}
+
 # Terraform operator must be able to attach the VM SA when creating the instance.
 resource "google_service_account_iam_member" "terraform_operator_act_as_vm" {
   service_account_id = google_service_account.vm.name

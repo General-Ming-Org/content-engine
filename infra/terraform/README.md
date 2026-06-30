@@ -62,6 +62,8 @@ Watch startup: **Compute Engine → content-engine → SSH** → `sudo tail -f /
 |-----|--------|
 | Dashboard | `terraform output public_url` |
 | API health | `<public_url>/api/health` |
+| Stack status | Settings → Stack Status, or `GET /api/observability/stack` (auth required) |
+| Cloud Logging | GCP Console → Logging (Ops Agent ships host + docker logs) |
 | Knowledge MCP | ephemeral IP port 8002 — `gcloud compute instances describe content-engine --format='get(networkInterfaces[0].accessConfigs[0].natIP)'` |
 
 **Never bookmark the raw VM IP** — it changes on stop/start. Always use `domain_name`.
@@ -81,6 +83,16 @@ Watch startup: **Compute Engine → content-engine → SSH** → `sudo tail -f /
 - `GCP_TLS_TRUSTED` — `true` after Let's Encrypt is active
 
 Deploy refreshes Cloud DNS after each release.
+
+### Ops Agent (existing VMs)
+
+Cold-boot installs the Google Cloud Ops Agent automatically. To install or refresh on a running VM:
+
+```bash
+sudo bash /opt/content-engine/scripts/install_ops_agent.sh
+```
+
+Config lives in `infra/ops-agent/config.yaml`.
 
 ## Rotating secrets
 

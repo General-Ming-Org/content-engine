@@ -21,6 +21,7 @@ from services.ai.api_keys import api_key_for_model
 from services.ai.model_capabilities import effective_max_tokens, get_capabilities
 from services.ai.model_router import pick_model
 from services.ai.providers import supports_mcp, supports_prompt_caching
+from services.observability.metrics import record_llm_call
 
 logger = structlog.get_logger(__name__)
 
@@ -101,14 +102,22 @@ async def generate(
     response = await acompletion(**kwargs)
 
     usage = response.usage
+    input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+    output_tokens = getattr(usage, "completion_tokens", 0) or 0
     logger.info(
         "llm_call",
         task=task,
         model=model,
-        input_tokens=getattr(usage, "prompt_tokens", 0),
-        output_tokens=getattr(usage, "completion_tokens", 0),
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
         cache_creation=getattr(usage, "cache_creation_input_tokens", 0) or 0,
         cache_read=getattr(usage, "cache_read_input_tokens", 0) or 0,
+    )
+    record_llm_call(
+        task=task,
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
     )
 
     return response.choices[0].message.content or ""
@@ -143,6 +152,24 @@ async def generate_json(
     )
     response = await acompletion(**kwargs)
     raw = response.choices[0].message.content or ""
+
+    usage = response.usage
+    input_tokens = getattr(usage, "prompt_tokens", 0) or 0
+    output_tokens = getattr(usage, "completion_tokens", 0) or 0
+    logger.info(
+        "llm_call",
+        task=task,
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        json_mode=True,
+    )
+    record_llm_call(
+        task=task,
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
 
     try:
         return json.loads(_strip_fences(raw))

@@ -61,11 +61,9 @@ resource "google_compute_instance" "engine" {
     google_artifact_registry_repository.containers,
     google_project_iam_member.vm_secrets,
     google_project_iam_member.vm_artifact_reader,
+    google_project_iam_member.vm_logging,
+    google_project_iam_member.vm_monitoring,
     google_service_account_iam_member.terraform_operator_act_as_vm,
     google_dns_managed_zone_iam_member.vm_dns_editor,
   ]
-
-  lifecycle {
-    ignore_changes = [metadata_startup_script]
-  }
 }

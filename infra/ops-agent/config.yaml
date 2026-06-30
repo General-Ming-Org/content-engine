@@ -1,0 +1,48 @@
+# Google Cloud Ops Agent configuration for the Content Engine VM.
+#
+# Ships:
+#   - Host metrics (CPU, memory, disk, network) → Cloud Monitoring
+#   - Syslog + startup script logs → Cloud Logging
+#   - Docker container JSON logs → Cloud Logging (parsed)
+#
+# Install: scripts/install_ops_agent.sh
+# Docs: https://cloud.google.com/stackdriver/docs/solutions/agents/ops-agent
+
+logging:
+  receivers:
+    syslog:
+      type: files
+      include_paths:
+        - /var/log/syslog
+        - /var/log/startup-script.log
+    docker_containers:
+      type: files
+      include_paths:
+        - /var/lib/docker/containers/*/*-json.log
+      record_log_file_path: true
+
+  processors:
+    parse_docker_json:
+      type: parse_json
+      field: message
+      time_key: time
+      time_format: "%Y-%m-%dT%H:%M:%S.%fZ"
+
+  service:
+    pipelines:
+      default:
+        receivers: [syslog]
+      docker:
+        receivers: [docker_containers]
+        processors: [parse_docker_json]
+
+metrics:
+  receivers:
+    hostmetrics:
+      type: hostmetrics
+      collection_interval: 60s
+
+  service:
+    pipelines:
+      default:
+        receivers: [hostmetrics]

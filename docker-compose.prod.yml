@@ -58,6 +58,7 @@ services:
     ports: !reset []
     volumes:
       - playwright_data:/root/.cache/ms-playwright
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
     restart: always
 

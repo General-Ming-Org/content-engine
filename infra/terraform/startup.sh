@@ -151,4 +151,9 @@ fi
 docker compose $COMPOSE_FILES up -d
 docker compose $COMPOSE_FILES exec -T backend alembic -c migrations/alembic.ini upgrade head || true
 
+# ── Google Cloud Ops Agent (host metrics + docker logs → Cloud Logging) ───────
+if [ -f "$APP_DIR/infra/ops-agent/config.yaml" ]; then
+  bash "$APP_DIR/scripts/install_ops_agent.sh" || echo "[startup] ops agent install failed — continuing"
+fi
+
 echo "[startup] $(date) — done"

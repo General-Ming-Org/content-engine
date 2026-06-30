@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from models.user import User
 from services.auth.jwt import decode_token
+from services.observability.context import bind_user_context
 
 _bearer = HTTPBearer(auto_error=False)
 
@@ -29,6 +30,7 @@ async def get_current_user(
     user = (await db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found or disabled")
+    bind_user_context(user_id=str(user.id))
     return user
 
 

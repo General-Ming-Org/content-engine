@@ -1,12 +1,13 @@
-import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
 import redis.asyncio as aioredis
 import structlog
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from services.observability.middleware import ObservabilityMiddleware
 
 from config import get_settings
 from database import check_db_connection
@@ -52,28 +53,15 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
+app.add_middleware(ObservabilityMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Request-ID"],
 )
-
-
-@app.middleware("http")
-async def log_requests(request: Request, call_next) -> Response:
-    start = time.perf_counter()
-    response = await call_next(request)
-    duration_ms = (time.perf_counter() - start) * 1000
-    logger.info(
-        "request",
-        method=request.method,
-        path=request.url.path,
-        status=response.status_code,
-        duration_ms=round(duration_ms, 2),
-    )
-    return response
 
 
 @app.get("/api/health", tags=["System"])
@@ -198,6 +186,7 @@ from services.content.router import router as content_router
 from services.credentials.router import router as credentials_router
 from services.engagement.router import router as engagement_router
 from services.notifications.router import router as notifications_router
+from services.observability.router import router as observability_router
 from services.publishing.router import oauth_router as linkedin_oauth_router
 from services.publishing.router import router as publishing_router
 from services.research.router import router as research_router
@@ -222,3 +211,9 @@ app.include_router(notifications_router, prefix="/api/notifications", tags=["Not
 app.include_router(scheduler_router, prefix="/api/scheduler", tags=["Scheduler"], dependencies=verified_required)
 app.include_router(settings_router, prefix="/api/settings", tags=["Settings"], dependencies=verified_required)
 app.include_router(ai_router, prefix="/api/ai/models", tags=["AI"], dependencies=verified_required)
+app.include_router(
+    observability_router,
+    prefix="/api/observability",
+    tags=["Observability"],
+    dependencies=verified_required,
+)

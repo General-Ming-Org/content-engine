@@ -157,6 +157,7 @@ jobs:
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml restart nginx
               sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T backend alembic -c migrations/alembic.ini upgrade head
+              sudo bash scripts/install_ops_agent.sh || echo '[deploy] ops agent install skipped'
               sudo systemctl start content-engine-dns.service || \
                 sudo python3 scripts/update_cloud_dns.py"
 
