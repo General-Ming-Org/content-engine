@@ -21,7 +21,7 @@ fi
 COMPOSE="docker compose -f docker-compose.yml -f docker-compose.prod.yml"
 
 echo "[certbot] requesting certificate for $DOMAIN_NAME"
-$COMPOSE run --rm certbot certonly --webroot -w /var/www/certbot \
+$COMPOSE run --rm --entrypoint certbot certbot certonly --webroot -w /var/www/certbot \
   -d "$DOMAIN_NAME" \
   --email "$CERTBOT_EMAIL" \
   --agree-tos --non-interactive --keep-until-expiring
