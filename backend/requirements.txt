@@ -36,7 +36,7 @@ qdrant-client==1.12.1
 # 1.1.2 predates `mcp.server.fastmcp` and the streamable-http transport; 1.10.x is
 # the first release line where the knowledge server's API (FastMCP + streamable_http_app
 # + host/port via constructor) is all present and stable.
-mcp==1.10.1
+mcp==1.27.2
 
 # Search APIs
 # Pinned <0.28 because litellm 1.55.0 requires httpx<0.28.0.
