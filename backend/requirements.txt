@@ -26,7 +26,7 @@ python-dotenv==1.0.1
 # Groq, DeepSeek, xAI, OpenRouter, etc.) through a single normalized interface.
 # We still pin the Anthropic SDK because LiteLLM uses it under the hood for
 # Claude calls.
-litellm==1.55.0
+litellm==1.93.0
 anthropic==0.40.0
 
 # Vector DB + embeddings
