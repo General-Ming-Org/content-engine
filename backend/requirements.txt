@@ -10,7 +10,7 @@ psycopg2-binary==2.9.10
 asyncpg==0.30.0
 
 # Async support
-anyio==4.7.0
+anyio==4.14.2
 
 # Task queue
 celery==5.4.0
